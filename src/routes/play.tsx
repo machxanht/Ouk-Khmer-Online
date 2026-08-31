@@ -1003,7 +1003,9 @@ function PlayPage() {
             showCheckBanner={false}
             showCheckmateBanner={
               matchStatus === "checkmate" ||
-              (gameResult?.winner !== null && gameResult?.reason === "checkmate")
+              matchStatus === "king_captured" ||
+              (gameResult?.winner !== null &&
+                (gameResult?.reason === "checkmate" || gameResult?.reason === "king_capture"))
             }
             onSquare={onSquare}
           />

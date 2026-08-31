@@ -59,12 +59,13 @@ export function ChessBoard({
       <div className="grid grid-cols-8 overflow-hidden rounded-xl w-full aspect-square relative">
         {/* CHECKMATE SPLASH: Pure Calligraphy 'អុក', No frame/card/box/border/bg, 3s dissolve */}
         {showMateSplash && (
-          <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center overflow-hidden">
-            <div className="animate-ouk-splash relative flex flex-col items-center justify-center select-none">
-              {/* Radiant aura */}
-              <span className="absolute -inset-10 rounded-full bg-radial from-amber-400/50 via-gold/25 to-transparent blur-3xl pointer-events-none" />
+          <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center overflow-hidden">
+            <div className="animate-ouk-splash relative flex items-center justify-center select-none">
+              {/* Dynamic Golden Radiant Aura */}
+              <span className="absolute -inset-24 rounded-full bg-radial from-amber-400/60 via-amber-500/25 to-transparent blur-3xl pointer-events-none" />
+              <span className="absolute -inset-12 rounded-full bg-radial from-yellow-300/60 via-amber-400/30 to-transparent blur-xl pointer-events-none" />
               {/* Calligraphy Khmer Display Ouk */}
-              <span className="khmer-ouk-calligraphy relative text-7xl sm:text-8xl md:text-9xl font-black tracking-wider text-amber-400 drop-shadow-[0_0_40px_rgba(245,158,11,0.95)]">
+              <span className="khmer-ouk-calligraphy relative text-8xl sm:text-9xl md:text-[11rem] lg:text-[13rem] font-normal leading-none tracking-normal text-amber-300">
                 អុក
               </span>
             </div>

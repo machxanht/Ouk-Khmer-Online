@@ -938,8 +938,11 @@ export function OnlineMatchArena({
           showCheckmateBanner={
             matchStatus === "finished" &&
             (gameState.status === "checkmate" ||
+              gameState.status === "king_captured" ||
               gameState.reason === "checkmate" ||
-              gameState.endReason === "checkmate")
+              gameState.reason === "king_capture" ||
+              gameState.endReason === "checkmate" ||
+              gameState.endReason === "king_capture")
           }
           flipped={isFlipped}
           onSquare={handleSquareClick}
