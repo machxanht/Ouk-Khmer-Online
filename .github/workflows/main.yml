@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - online-multiplayer
   workflow_dispatch:
 
 jobs:
@@ -146,10 +147,19 @@ jobs:
         run: |
           set -e
 
-          if [ -d "android" ]; then
+          if [ -d "android/app" ]; then
             echo "Android project already exists."
           else
+            if [ -d "android" ]; then
+              echo "Backing up root android resource files..."
+              mkdir -p /tmp/android_backup
+              cp -r android/* /tmp/android_backup/ 2>/dev/null || true
+              rm -rf android
+            fi
             npx cap add android
+            if [ -d "/tmp/android_backup" ]; then
+              cp -r /tmp/android_backup/* android/ 2>/dev/null || true
+            fi
           fi
 
       # ============================================================
