@@ -1,0 +1,6 @@
+{
+  "name": "Khmer Ouk",
+  "description": "Khmer Ouk board game application",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

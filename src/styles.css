@@ -1,0 +1,358 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Ouk Chatrang — Khmer heritage design system.
+ * Sandstone, lotus cream, royal gold, teak & jade.
+ * All colors in oklch. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-gold-dark: var(--gold-dark);
+  --color-teak: var(--teak);
+  --color-teak-dark: var(--teak-dark);
+  --color-sandstone: var(--sandstone);
+  --color-jade: var(--jade);
+  --color-crimson: var(--crimson);
+  --color-board-light: var(--board-light);
+  --color-board-dark: var(--board-dark);
+  --color-surface-raised: var(--surface-raised);
+
+  --font-display:
+    "Moul", "Cinzel", "Be Vietnam Pro", "Kantumruy Pro", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif:
+    "Cinzel", "Be Vietnam Pro", "Kantumruy Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    "Be Vietnam Pro", "Kantumruy Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --shadow-temple: 0 18px 40px -22px color-mix(in oklab, var(--teak-dark) 55%, transparent);
+  --shadow-gold: 0 10px 30px -12px color-mix(in oklab, var(--gold) 60%, transparent);
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-glow: glow 3.2s ease-in-out infinite;
+  --animate-shimmer: shimmer 3.5s linear infinite;
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-spin-slow: spin 22s linear infinite;
+}
+
+:root {
+  --radius: 1rem;
+  --background: oklch(0.985 0.014 88);
+  --foreground: oklch(0.26 0.035 55);
+  --card: oklch(0.995 0.008 90);
+  --card-foreground: oklch(0.26 0.035 55);
+  --popover: oklch(0.995 0.008 90);
+  --popover-foreground: oklch(0.26 0.035 55);
+  --primary: oklch(0.62 0.13 72);
+  --primary-foreground: oklch(0.99 0.01 90);
+  --secondary: oklch(0.94 0.03 86);
+  --secondary-foreground: oklch(0.34 0.06 58);
+  --muted: oklch(0.945 0.025 86);
+  --muted-foreground: oklch(0.52 0.04 62);
+  --accent: oklch(0.9 0.06 84);
+  --accent-foreground: oklch(0.32 0.07 55);
+  --destructive: oklch(0.55 0.19 27);
+  --destructive-foreground: oklch(0.98 0.01 90);
+  --border: oklch(0.88 0.04 84);
+  --input: oklch(0.9 0.035 84);
+  --ring: oklch(0.62 0.13 72);
+
+  --gold: oklch(0.68 0.13 78);
+  --gold-light: oklch(0.88 0.1 90);
+  --gold-dark: oklch(0.45 0.11 65);
+  --teak: oklch(0.42 0.09 50);
+  --teak-dark: oklch(0.28 0.07 46);
+  --sandstone: oklch(0.93 0.04 82);
+  --jade: oklch(0.55 0.1 165);
+  --crimson: oklch(0.5 0.17 28);
+  --board-light: oklch(0.93 0.045 84);
+  --board-dark: oklch(0.72 0.08 62);
+  --surface-raised: oklch(0.975 0.018 88);
+
+  --gradient-royal: linear-gradient(135deg, var(--gold-dark), var(--gold) 45%, var(--gold-light));
+  --gradient-temple: linear-gradient(180deg, oklch(0.97 0.03 88), oklch(0.92 0.05 80));
+  --gradient-night: linear-gradient(160deg, oklch(0.24 0.05 48), oklch(0.32 0.07 62));
+}
+
+.dark {
+  --background: oklch(0.22 0.03 52);
+  --foreground: oklch(0.95 0.02 88);
+  --card: oklch(0.27 0.035 52);
+  --card-foreground: oklch(0.95 0.02 88);
+  --popover: oklch(0.27 0.035 52);
+  --popover-foreground: oklch(0.95 0.02 88);
+  --primary: oklch(0.78 0.12 84);
+  --primary-foreground: oklch(0.24 0.05 50);
+  --secondary: oklch(0.32 0.04 52);
+  --secondary-foreground: oklch(0.94 0.02 88);
+  --muted: oklch(0.32 0.04 52);
+  --muted-foreground: oklch(0.75 0.03 82);
+  --accent: oklch(0.36 0.06 62);
+  --accent-foreground: oklch(0.95 0.02 88);
+  --border: oklch(0.98 0.02 88 / 14%);
+  --input: oklch(0.98 0.02 88 / 18%);
+  --ring: oklch(0.78 0.12 84);
+  --surface-raised: oklch(0.3 0.04 52);
+  --sandstone: oklch(0.36 0.05 62);
+  --gradient-temple: linear-gradient(180deg, oklch(0.26 0.04 50), oklch(0.22 0.03 52));
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    letter-spacing: 0.01em;
+  }
+
+  html[lang="vi"],
+  html[lang="vi"] body,
+  html[lang="vi"] h1,
+  html[lang="vi"] h2,
+  html[lang="vi"] h3,
+  html[lang="vi"] h4,
+  html[lang="vi"] h5,
+  html[lang="vi"] h6,
+  html[lang="vi"] p,
+  html[lang="vi"] span,
+  html[lang="vi"] button,
+  html[lang="vi"] input,
+  html[lang="vi"] textarea,
+  html[lang="vi"] .font-serif,
+  html[lang="vi"] .font-display,
+  :lang(vi),
+  [lang="vi"],
+  [data-lang="vi"],
+  .lang-vi,
+  .lang-vi * {
+    font-family:
+      "Be Vietnam Pro",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif !important;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(-1.2deg);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes oukSplash {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: drop-shadow(0 0 0px rgba(245, 158, 11, 0));
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 45px rgba(245, 158, 11, 0.95));
+  }
+  30% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 32px rgba(245, 158, 11, 0.85));
+  }
+  70% {
+    opacity: 0.95;
+    transform: scale(1.02);
+    filter: drop-shadow(0 0 35px rgba(245, 158, 11, 0.85));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 60px rgba(245, 158, 11, 0));
+  }
+}
+
+.animate-ouk-splash {
+  animation: oukSplash 3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.khmer-ouk-calligraphy {
+  font-family: "Moul", cursive, serif !important;
+}
+
+@utility text-royal {
+  background: var(--gradient-royal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-royal {
+  background: var(--gradient-royal);
+}
+
+@utility bg-temple {
+  background: var(--gradient-temple);
+}
+
+@utility shimmer-sheen {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 35%,
+      color-mix(in oklab, var(--gold-light) 55%, transparent) 50%,
+      transparent 65%
+    );
+    background-size: 220% 100%;
+    animation: var(--animate-shimmer);
+    pointer-events: none;
+  }
+}
+
+@utility kbach-frame {
+  position: relative;
+  border: 1px solid color-mix(in oklab, var(--gold) 45%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--gold-light) 40%, transparent),
+    var(--shadow-temple);
+}
+
+@utility temple-grain {
+  background-image:
+    radial-gradient(color-mix(in oklab, var(--gold) 14%, transparent) 1px, transparent 1px),
+    radial-gradient(color-mix(in oklab, var(--teak) 8%, transparent) 1px, transparent 1px);
+  background-size:
+    22px 22px,
+    22px 22px;
+  background-position:
+    0 0,
+    11px 11px;
+}
+
+@utility stagger-children {
+  & > * {
+    animation: var(--animate-rise);
+  }
+  & > *:nth-child(1) {
+    animation-delay: 0.04s;
+  }
+  & > *:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  & > *:nth-child(3) {
+    animation-delay: 0.16s;
+  }
+  & > *:nth-child(4) {
+    animation-delay: 0.22s;
+  }
+  & > *:nth-child(5) {
+    animation-delay: 0.28s;
+  }
+  & > *:nth-child(6) {
+    animation-delay: 0.34s;
+  }
+  & > *:nth-child(7) {
+    animation-delay: 0.4s;
+  }
+  & > *:nth-child(8) {
+    animation-delay: 0.46s;
+  }
+}

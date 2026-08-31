@@ -1,0 +1,39 @@
+diff --git a/src/lib/online-client.ts b/src/lib/online-client.ts
+index 51c523c..ed875ce 100644
+--- a/src/lib/online-client.ts
++++ b/src/lib/online-client.ts
+@@ -91,7 +91,7 @@ export class OnlineClient {
+ 
+   public connect(url?: string): Socket {
+     if (this.socket) {
+-      if (this.socket.connected || this.socket.active) {
++      if (this.socket.connected || this.connectionPromise || this.socket.active) {
+         return this.socket;
+       }
+       this.socket.connect();
+@@ -133,6 +133,12 @@ export class OnlineClient {
+         return;
+       }
+ 
++      const cleanup = () => {
++        socket.off("connect", onConnect);
++        socket.off("connect_error", onError);
++        socket.off("disconnect", onDisconnect);
++      };
++
+       const onConnect = () => {
+         cleanup();
+         this.connectionPromise = null;
+@@ -151,12 +157,6 @@ export class OnlineClient {
+         reject(new Error(`Socket disconnected before connection established: ${reason}`));
+       };
+ 
+-      const cleanup = () => {
+-        socket.off("connect", onConnect);
+-        socket.off("connect_error", onError);
+-        socket.off("disconnect", onDisconnect);
+-      };
+-
+       socket.once("connect", onConnect);
+       socket.once("connect_error", onError);
+       socket.once("disconnect", onDisconnect);

@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile storing display name, avatar, and verification info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique Firebase User ID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "User avatar photo URL" },
+        "emailVerified": { "type": "boolean", "description": "Whether user email is verified" },
+        "providerId": {
+          "type": "string",
+          "description": "Auth provider (e.g. google.com, password)"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Epoch timestamp in milliseconds when user joined"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Epoch timestamp in milliseconds of last profile sync"
+        }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "MatchRecord": {
+      "title": "MatchRecord",
+      "description": "Historical record of completed online matches",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string", "description": "Unique room/match ID" },
+        "rulesetId": { "type": "string", "description": "Ruleset played (folk or international)" },
+        "winner": { "type": "string", "description": "Winner color or draw ('w', 'b', 'draw')" },
+        "reason": { "type": "string", "description": "Reason for game termination" },
+        "createdAt": { "type": "number", "description": "Epoch timestamp of match end" }
+      },
+      "required": ["matchId", "rulesetId", "winner"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile records indexed by auth UID"
+    },
+    "/match_history/{matchId}": {
+      "schema": "MatchRecord",
+      "description": "Archive of completed matches"
+    }
+  }
+}
