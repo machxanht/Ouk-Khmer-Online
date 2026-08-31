@@ -725,20 +725,47 @@ export function advanceCounting(counting: CountingState, movingPlayer: Color): C
 // AI Evaluation & Negamax Search with Ruleset Awareness
 // ----------------------------------------------------
 
+/** Positional piece-square table weights for central control */
+const CENTER_WEIGHTS = [
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 3, 4, 4, 3, 1, 0, 0, 2, 4, 6, 6, 4, 2, 0, 0,
+  2, 4, 6, 6, 4, 2, 0, 0, 1, 3, 4, 4, 3, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
 export function evaluate(board: Board, color: Color): number {
+  const myKing = findKing(board, color);
+  const oppColor: Color = color === "w" ? "b" : "w";
+  const oppKing = findKing(board, oppColor);
+
+  if (myKing < 0) return -50000;
+  if (oppKing < 0) return 50000;
+
   let score = 0;
   for (let i = 0; i < 64; i++) {
     const p = board[i];
     if (!p) continue;
-    const v =
-      PIECE_NAMES[p.type].value * 10 +
-      (p.type === "p" ? (p.color === "w" ? 7 - row(i) : row(i)) : 0);
+
+    // Base piece value (multiplied by 10)
+    let v = PIECE_NAMES[p.type].value * 10;
+
+    // Trey advance towards promotion rank (rank 2 for white, rank 5 for black)
+    if (p.type === "p") {
+      v += (p.color === "w" ? 7 - row(i) : row(i)) * 2;
+    }
+
+    // Promoted Fish (Trey Bork) and Queen (Neang) mobility
+    if (p.type === "f" || p.type === "q") {
+      v += 4;
+    }
+
+    // Positional center weighting
+    v += CENTER_WEIGHTS[i] || 0;
+
     score += p.color === color ? v : -v;
   }
   return score;
 }
 
-/** Negamax with alpha-beta search using the active ruleset */
+/** Negamax with alpha-beta search using the active ruleset and difficulty depth */
 export function bestMove(
   board: Board,
   color: Color,
@@ -747,29 +774,53 @@ export function bestMove(
 ): { from: number; to: number } | null {
   const moves = allLegalMoves(board, color, ruleset);
   if (moves.length === 0) return null;
+
+  // Level 1: Novice - Captures preferred with minor exploration noise
   if (depth <= 1) {
-    // Novice: prefer captures, otherwise random
-    const scored = moves.map((m) => ({
-      m,
-      s: (board[m.to] ? PIECE_NAMES[board[m.to]!.type].value * 10 : 0) + Math.random() * 6,
-    }));
+    const scored = moves.map((m) => {
+      const target = board[m.to];
+      const capValue = target ? PIECE_NAMES[target.type].value * 15 : 0;
+      const isPromo = board[m.from]?.type === "p" && row(m.to) === (color === "w" ? 2 : 5);
+      const promoBonus = isPromo ? 20 : 0;
+      return {
+        m,
+        s: capValue + promoBonus + (Math.random() * 8 - 4),
+      };
+    });
     scored.sort((a, b) => b.s - a.s);
     return scored[0]!.m;
   }
 
+  // Alpha-beta negamax recursive search
   const search = (b: Board, c: Color, d: number, alpha: number, beta: number): number => {
     if (d === 0) return evaluate(b, c);
+
+    const oppC: Color = c === "w" ? "b" : "w";
+    const kingPos = findKing(b, c);
+    const oppKingPos = findKing(b, oppC);
+    if (kingPos < 0) return -50000 - d;
+    if (oppKingPos < 0) return 50000 + d;
+
     const ms = allLegalMoves(b, c, ruleset);
-    if (ms.length === 0) return inCheck(b, c, ruleset) ? -99999 + d : 0;
+    if (ms.length === 0) {
+      return inCheck(b, c, ruleset) ? -40000 - d : 0;
+    }
+
+    // Move ordering: MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+    const sorted = ms
+      .map((m) => {
+        const victim = b[m.to];
+        const attacker = b[m.from];
+        const victimVal = victim ? PIECE_NAMES[victim.type].value * 10 : 0;
+        const attackerVal = attacker ? PIECE_NAMES[attacker.type].value : 0;
+        return { m, orderScore: victimVal - attackerVal };
+      })
+      .sort((a, b) => b.orderScore - a.orderScore);
+
     let best = -Infinity;
-    for (const m of ms) {
-      const score = -search(
-        applyMove(b, m.from, m.to),
-        c === "w" ? "b" : "w",
-        d - 1,
-        -beta,
-        -alpha,
-      );
+    for (const item of sorted) {
+      const nextB = applyMove(b, item.m.from, item.m.to);
+      const score = -search(nextB, oppC, d - 1, -beta, -alpha);
       if (score > best) best = score;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -779,22 +830,27 @@ export function bestMove(
 
   let bestScore = -Infinity;
   let choice = moves[0]!;
-  const ordered = moves
-    .map((m) => ({ m, cap: board[m.to] ? PIECE_NAMES[board[m.to]!.type].value : 0 }))
-    .sort((a, b) => b.cap - a.cap)
-    .map((x) => x.m);
-  for (const m of ordered) {
-    const score = -search(
-      applyMove(board, m.from, m.to),
-      color === "w" ? "b" : "w",
-      depth - 1,
-      -Infinity,
-      Infinity,
-    );
+
+  // Order root moves for optimal alpha-beta cutoffs
+  const orderedMoves = moves
+    .map((m) => {
+      const victim = board[m.to];
+      const attacker = board[m.from];
+      const victimVal = victim ? PIECE_NAMES[victim.type].value * 10 : 0;
+      const attackerVal = attacker ? PIECE_NAMES[attacker.type].value : 0;
+      return { m, orderScore: victimVal - attackerVal };
+    })
+    .sort((a, b) => b.orderScore - a.orderScore);
+
+  for (const item of orderedMoves) {
+    const m = item.m;
+    const nextB = applyMove(board, m.from, m.to);
+    const score = -search(nextB, color === "w" ? "b" : "w", depth - 1, -Infinity, Infinity);
     if (score > bestScore) {
       bestScore = score;
       choice = m;
     }
   }
+
   return choice;
 }

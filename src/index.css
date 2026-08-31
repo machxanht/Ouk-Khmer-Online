@@ -12,7 +12,7 @@
     filter: brightness(1.7) drop-shadow(0 0 50px #fbbf24) drop-shadow(0 0 90px #f59e0b);
   }
   26% {
-    transform: scale(1.0);
+    transform: scale(1);
     filter: brightness(1.35) drop-shadow(0 0 40px #f59e0b) drop-shadow(0 0 75px #d97706);
   }
   45% {
@@ -34,4 +34,12 @@
 .animate-ouk-splash {
   animation: oukSplash 3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, opacity, filter;
+}
+
+.khmer-ouk-calligraphy {
+  font-family: "Moul", cursive, serif;
+  text-shadow:
+    0 0 20px rgba(251, 191, 36, 0.95),
+    0 0 45px rgba(245, 158, 11, 0.85),
+    0 0 80px rgba(217, 119, 6, 0.65);
 }

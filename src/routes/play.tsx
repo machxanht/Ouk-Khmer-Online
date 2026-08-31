@@ -444,35 +444,59 @@ function PlayPage() {
     [selectedRulesetId, selectedTimeControl],
   );
 
-  // Initialize AI Worker
+  const commitRef = useRef(commit);
   useEffect(() => {
-    const worker = new Worker(new URL("../workers/ai.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    workerRef.current = worker;
+    commitRef.current = commit;
+  }, [commit]);
 
-    worker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
-      const { requestId, type, move, hint: workerHint } = e.data;
-      if (requestId !== currentRequestIdRef.current) return;
+  const isTerminalRef = useRef(isTerminal);
+  useEffect(() => {
+    isTerminalRef.current = isTerminal;
+  }, [isTerminal]);
 
-      if (type === "bestmove") {
+  // Initialize AI Worker as Singleton
+  useEffect(() => {
+    let worker: Worker | null = null;
+    try {
+      worker = new Worker(new URL("../workers/ai.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      workerRef.current = worker;
+
+      worker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
+        const { requestId, type, action, move, hint: workerHint } = e.data;
+        if (requestId !== currentRequestIdRef.current) return;
+        if (isTerminalRef.current) {
+          setThinking(false);
+          return;
+        }
+
+        if (type === "hint" || action === "hint") {
+          const h = workerHint || move;
+          if (h) {
+            setHint([h.from, h.to]);
+            setSelected(h.from);
+          }
+        } else {
+          setThinking(false);
+          if (move) {
+            commitRef.current(move.from, move.to);
+          }
+        }
+      };
+
+      worker.onerror = () => {
         setThinking(false);
-        if (move) {
-          commit(move.from, move.to);
-        }
-      } else if (type === "hint") {
-        if (workerHint) {
-          setHint([workerHint.from, workerHint.to]);
-          setSelected(workerHint.from);
-        }
-      }
-    };
+      };
+    } catch {
+      // Fallback in environments without Web Worker support
+    }
 
     return () => {
-      worker.terminate();
+      worker?.terminate();
       workerRef.current = null;
     };
-  }, [commit]);
+  }, []);
 
   // AI Turn Trigger
   useEffect(() => {
@@ -485,14 +509,29 @@ function PlayPage() {
     const request: AIWorkerRequest = {
       requestId,
       type: "search",
+      action: "move",
       board,
       turn: "b",
+      color: "b",
       depth,
       rulesetId: matchRulesetId,
     };
 
-    workerRef.current?.postMessage(request);
-  }, [started, mode, turn, isTerminal, board, depth, matchRulesetId, thinking]);
+    if (workerRef.current) {
+      workerRef.current.postMessage(request);
+    } else {
+      // Direct reliable fallback for environments without Web Worker
+      const timer = setTimeout(() => {
+        if (requestId !== currentRequestIdRef.current || isTerminalRef.current) return;
+        setThinking(false);
+        const move = bestMove(board, "b", depth, activeRuleset);
+        if (move) {
+          commitRef.current(move.from, move.to);
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [started, mode, turn, isTerminal, board, depth, matchRulesetId, activeRuleset, thinking]);
 
   const onSquare = (i: number) => {
     if (!started || isTerminal) return;
@@ -573,13 +612,23 @@ function PlayPage() {
     const request: AIWorkerRequest = {
       requestId,
       type: "hint",
+      action: "hint",
       board,
       turn,
+      color: turn,
       depth: Math.max(depth, 2),
       rulesetId: matchRulesetId,
     };
 
-    workerRef.current?.postMessage(request);
+    if (workerRef.current) {
+      workerRef.current.postMessage(request);
+    } else {
+      const move = bestMove(board, turn, Math.max(depth, 2), activeRuleset);
+      if (move) {
+        setHint([move.from, move.to]);
+        setSelected(move.from);
+      }
+    }
   };
 
   const handleNewGameClick = () => {
