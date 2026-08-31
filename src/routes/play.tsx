@@ -1049,7 +1049,7 @@ function PlayPage() {
             checkSquare={checkSquare}
             flipped={flipped}
             touchLocked={touchLocked}
-            showCheckBanner={false}
+            showCheckBanner={matchStatus === "check" || rawState === "check"}
             showCheckmateBanner={
               matchStatus === "checkmate" ||
               matchStatus === "king_captured" ||

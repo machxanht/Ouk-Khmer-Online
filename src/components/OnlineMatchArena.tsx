@@ -934,7 +934,7 @@ export function OnlineMatchArena({
           targets={targets}
           lastMove={gameState.lastMove || null}
           checkSquare={checkSquare}
-          showCheckBanner={false}
+          showCheckBanner={gameState.status === "check" || gameState.reason === "check"}
           showCheckmateBanner={
             matchStatus === "finished" &&
             (gameState.status === "checkmate" ||

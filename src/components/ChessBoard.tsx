@@ -37,11 +37,13 @@ export function ChessBoard({
   const theme = BOARD_THEMES[boardTheme];
   const order = Array.from({ length: 64 }, (_, i) => (flipped ? 63 - i : i));
 
-  // Checkmate 3-second non-blocking calligraphy splash state
+  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state
   const [showMateSplash, setShowMateSplash] = useState(false);
+  const [splashKey, setSplashKey] = useState(0);
 
   useEffect(() => {
-    if (showCheckmateBanner) {
+    if (showCheckmateBanner || showCheckBanner) {
+      setSplashKey((k) => k + 1);
       setShowMateSplash(true);
       const timer = setTimeout(() => {
         setShowMateSplash(false);
@@ -50,16 +52,19 @@ export function ChessBoard({
     } else {
       setShowMateSplash(false);
     }
-  }, [showCheckmateBanner]);
+  }, [showCheckmateBanner, showCheckBanner]);
 
   return (
     <div
       className={`kbach-frame relative bg-royal rounded-2xl p-1.5 sm:p-2 shadow-lg w-full ${className || ""}`}
     >
       <div className="grid grid-cols-8 overflow-hidden rounded-xl w-full aspect-square relative">
-        {/* CHECKMATE SPLASH: Pure Calligraphy 'អុក', No frame/card/box/border/bg, 3s dissolve */}
+        {/* CHECK / CHECKMATE SPLASH: Pure Calligraphy 'អុក', No frame/card/box/border/bg, 3s dissolve */}
         {showMateSplash && (
-          <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center overflow-hidden">
+          <div
+            key={splashKey}
+            className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center overflow-hidden"
+          >
             <div className="animate-ouk-splash relative flex items-center justify-center select-none">
               {/* Dynamic Golden Radiant Aura */}
               <span className="absolute -inset-24 rounded-full bg-radial from-amber-400/60 via-amber-500/25 to-transparent blur-3xl pointer-events-none" />
