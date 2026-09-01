@@ -387,7 +387,9 @@ function OnlineMatchPage() {
         <PlayerNameModal
           isOpen={nameModalOpen}
           onClose={() => setNameModalOpen(false)}
-          onSuccess={(newName) => setPlayerNameInput(newName)}
+          onSuccess={() => {
+            setCurrentProfile(authManager.getCurrentProfile());
+          }}
         />
       </AppShell>
     );

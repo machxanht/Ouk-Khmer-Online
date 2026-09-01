@@ -457,8 +457,14 @@ class AuthManager {
   public async fetchLeaderboard(limitCount = 50): Promise<UserProfile[]> {
     try {
       const usersCol = collection(db, "users");
-      const q = query(usersCol, orderBy("rating", "desc"), limit(limitCount));
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        const q = query(usersCol, orderBy("rating", "desc"), limit(limitCount));
+        querySnapshot = await getDocs(q);
+      } catch (queryErr) {
+        console.warn("Ordered query fallback, loading collection directly:", queryErr);
+        querySnapshot = await getDocs(query(usersCol, limit(limitCount)));
+      }
       const profiles: UserProfile[] = [];
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -482,6 +488,8 @@ class AuthManager {
           });
         }
       });
+      // Guarantee descending rating sort
+      profiles.sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
       return profiles;
     } catch (err) {
       console.warn("Error fetching real leaderboard from Firestore:", err);
