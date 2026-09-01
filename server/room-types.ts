@@ -18,6 +18,8 @@ export interface PlayerInfo {
   joinedAt: number;
   connected?: boolean;
   disconnectedAt?: number | null;
+  isBot?: boolean;
+  rating?: number;
 }
 
 export type OnlineGameMode = "folk" | "international" | "blitz";
@@ -41,6 +43,8 @@ export interface Room {
   };
   gameState?: GameState;
   createdAt: number;
+  isBotRoom?: boolean;
+  botTurnTimer?: NodeJS.Timeout | null;
 }
 
 export interface MatchmakingPlayer {
@@ -55,4 +59,6 @@ export interface MatchmakingPlayer {
     initialSeconds: number;
   };
   joinedAt: number;
+  isBot?: boolean;
+  rating?: number;
 }

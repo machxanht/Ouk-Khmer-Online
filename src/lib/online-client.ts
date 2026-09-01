@@ -33,6 +33,7 @@ export type OnlineClientEventMap = {
   "player:left": (data: { message: string }) => void;
   "player:status": (data: PlayerStatusPayload) => void;
   "chat:message": (data: ChatMessagePayload) => void;
+  "system:online_count": (data: { onlineCount: number; rawCount: number }) => void;
 };
 
 export interface ClientDiagnosticEvent {
@@ -152,6 +153,7 @@ export class OnlineClient {
       "player:left",
       "player:status",
       "chat:message",
+      "system:online_count",
     ];
 
     for (const evt of forwardEvents) {

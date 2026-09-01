@@ -19,6 +19,7 @@ import {
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider, facebookProvider } from "./firebase";
 import { onlineClient } from "./online-client";
+import { calculateElo, type EloUpdateResult } from "./elo";
 
 export type AuthUser = FirebaseUser;
 
@@ -29,6 +30,13 @@ export interface UserProfile {
   photoURL: string | null;
   emailVerified: boolean;
   providerId: string;
+  rating?: number;
+  peakRating?: number;
+  wins?: number;
+  losses?: number;
+  draws?: number;
+  winStreak?: number;
+  gamesPlayed?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -186,6 +194,13 @@ class AuthManager {
   private createFallbackProfile(user: FirebaseUser): UserProfile {
     const savedName =
       typeof window !== "undefined" ? localStorage.getItem("ouk_player_name") : null;
+    let savedRating = 1200;
+    try {
+      const r = localStorage.getItem("ouk_player_rating");
+      if (r) savedRating = parseInt(r, 10) || 1200;
+    } catch {
+      /* ignore */
+    }
     return {
       uid: user.uid,
       email: user.email,
@@ -193,6 +208,13 @@ class AuthManager {
       photoURL: user.photoURL,
       emailVerified: user.emailVerified,
       providerId: user.providerData?.[0]?.providerId || "password",
+      rating: savedRating,
+      peakRating: savedRating,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      winStreak: 0,
+      gamesPlayed: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -206,6 +228,13 @@ class AuthManager {
       const now = Date.now();
       const savedName =
         typeof window !== "undefined" ? localStorage.getItem("ouk_player_name") : null;
+      let savedRating = 1200;
+      try {
+        const r = localStorage.getItem("ouk_player_rating");
+        if (r) savedRating = parseInt(r, 10) || 1200;
+      } catch {
+        /* ignore */
+      }
 
       if (!snap.exists()) {
         const initialDisplayName =
@@ -217,6 +246,13 @@ class AuthManager {
           photoURL: user.photoURL,
           emailVerified: user.emailVerified,
           providerId: user.providerData?.[0]?.providerId || "password",
+          rating: savedRating,
+          peakRating: savedRating,
+          wins: 0,
+          losses: 0,
+          draws: 0,
+          winStreak: 0,
+          gamesPlayed: 0,
           createdAt: now,
           updatedAt: now,
         };
@@ -240,6 +276,13 @@ class AuthManager {
           displayName: currentDisplayName,
           photoURL: user.photoURL || data.photoURL,
           emailVerified: user.emailVerified,
+          rating: data.rating ?? savedRating,
+          peakRating: data.peakRating ?? data.rating ?? savedRating,
+          wins: data.wins ?? 0,
+          losses: data.losses ?? 0,
+          draws: data.draws ?? 0,
+          winStreak: data.winStreak ?? 0,
+          gamesPlayed: data.gamesPlayed ?? 0,
           updatedAt: now,
         };
         await updateDoc(userRef, {
@@ -252,6 +295,92 @@ class AuthManager {
       console.warn("Firestore sync skipped or offline:", err);
       return this.createFallbackProfile(user);
     }
+  }
+
+  public getPlayerRating(): number {
+    if (this.currentProfile?.rating) {
+      return this.currentProfile.rating;
+    }
+    try {
+      const local = localStorage.getItem("ouk_player_rating");
+      if (local) return parseInt(local, 10) || 1200;
+    } catch {
+      // ignore
+    }
+    return 1200;
+  }
+
+  public async recordOnlineMatchResult(
+    outcome: "win" | "loss" | "draw",
+    opponentRating: number = 1200,
+  ): Promise<EloUpdateResult> {
+    const currentRating = this.getPlayerRating();
+    const gamesPlayed = this.currentProfile?.gamesPlayed || 0;
+    const score = outcome === "win" ? 1 : outcome === "draw" ? 0.5 : 0;
+    const eloResult = calculateElo(currentRating, opponentRating, score, gamesPlayed);
+
+    const oldWins = this.currentProfile?.wins || 0;
+    const oldLosses = this.currentProfile?.losses || 0;
+    const oldDraws = this.currentProfile?.draws || 0;
+    const oldStreak = this.currentProfile?.winStreak || 0;
+    const oldPeak = this.currentProfile?.peakRating || currentRating;
+
+    const newWins = outcome === "win" ? oldWins + 1 : oldWins;
+    const newLosses = outcome === "loss" ? oldLosses + 1 : oldLosses;
+    const newDraws = outcome === "draw" ? oldDraws + 1 : oldDraws;
+    const newStreak = outcome === "win" ? oldStreak + 1 : outcome === "loss" ? 0 : oldStreak;
+    const newPeak = Math.max(oldPeak, eloResult.newRating);
+    const newGamesPlayed = gamesPlayed + 1;
+
+    try {
+      localStorage.setItem("ouk_player_rating", String(eloResult.newRating));
+      localStorage.setItem(
+        "ouk_player_stats",
+        JSON.stringify({
+          rating: eloResult.newRating,
+          wins: newWins,
+          losses: newLosses,
+          draws: newDraws,
+          winStreak: newStreak,
+          gamesPlayed: newGamesPlayed,
+        }),
+      );
+    } catch {
+      // ignore
+    }
+
+    if (this.currentUser && this.currentProfile) {
+      this.currentProfile = {
+        ...this.currentProfile,
+        rating: eloResult.newRating,
+        peakRating: newPeak,
+        wins: newWins,
+        losses: newLosses,
+        draws: newDraws,
+        winStreak: newStreak,
+        gamesPlayed: newGamesPlayed,
+        updatedAt: Date.now(),
+      };
+      this.notifyListeners();
+
+      try {
+        const userRef = doc(db, "users", this.currentUser.uid);
+        await updateDoc(userRef, {
+          rating: eloResult.newRating,
+          peakRating: newPeak,
+          wins: newWins,
+          losses: newLosses,
+          draws: newDraws,
+          winStreak: newStreak,
+          gamesPlayed: newGamesPlayed,
+          serverUpdatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.warn("Could not sync rating to Firestore:", err);
+      }
+    }
+
+    return eloResult;
   }
 
   public async updatePlayerDisplayName(rawName: string): Promise<UserProfile> {

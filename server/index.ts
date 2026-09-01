@@ -4,6 +4,7 @@ import { matchmakingManager } from "./matchmaking-manager";
 import { roomManager } from "./room-manager";
 import { serverLogger } from "./logger";
 import { authVerifier } from "./auth-verifier";
+import { aiBotManager } from "./ai-bot-manager";
 
 export interface RealtimeServerOptions {
   port?: number;
@@ -109,6 +110,9 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
         if (result.matched) {
           const { p1, p2, rulesetId: matchRulesetId, timeControl: matchTimeControl } = result;
+          aiBotManager.cancelFallback(p1.socketId);
+          aiBotManager.cancelFallback(p2.socketId);
+
           const room = roomManager.createMatchmakingRoom(p1, p2, matchRulesetId, matchTimeControl);
 
           const socket1 = io.sockets.sockets.get(p1.socketId);
@@ -159,11 +163,19 @@ export function registerSocketHandlers(io: SocketIOServer) {
           });
         } else {
           socket.emit("matchmaking:searching", { queueSize: result.queueSize });
+          aiBotManager.scheduleFallback(
+            socket,
+            { name, rulesetId, mode, timeControl, authMeta },
+            io,
+            onRoomTimeout,
+            onTurnSkipped,
+          );
         }
       },
     );
 
     socket.on("matchmaking:leave", () => {
+      aiBotManager.cancelFallback(socket.id);
       matchmakingManager.leaveQueue(socket.id);
       socket.emit("matchmaking:left");
     });
@@ -394,6 +406,24 @@ export function registerSocketHandlers(io: SocketIOServer) {
       } else {
         // Continue match: Schedule timer for next turn
         roomManager.startTurnTimer(moveResult.room, onRoomTimeout, onTurnSkipped);
+
+        // If playing against bot and now it's bot's turn, trigger bot thinking
+        if (moveResult.room.isBotRoom) {
+          const botColor = moveResult.room.players.w?.isBot
+            ? "w"
+            : moveResult.room.players.b?.isBot
+              ? "b"
+              : null;
+          if (botColor && moveResult.room.gameState?.turn === botColor) {
+            aiBotManager.triggerBotMove(
+              moveResult.room,
+              botColor,
+              io,
+              onRoomTimeout,
+              onTurnSkipped,
+            );
+          }
+        }
       }
     });
 
@@ -421,6 +451,12 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
     // 4. DRAW OFFER & ACCEPTANCE
     socket.on("game:draw_offer", () => {
+      const room = roomManager.getRoomBySocket(socket.id);
+      if (room?.isBotRoom) {
+        aiBotManager.handleBotDrawOffer(room, io);
+        return;
+      }
+
       const result = roomManager.handleDrawOffer(socket.id);
       if (result.success) {
         io.to(result.opponentSocketId).emit("game:draw_offered", {
@@ -456,6 +492,12 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
     // 5. REMATCH FLOW
     socket.on("game:rematch_request", () => {
+      const currentRoom = roomManager.getRoomBySocket(socket.id);
+      if (currentRoom?.isBotRoom) {
+        aiBotManager.handleBotRematch(currentRoom, io, onRoomTimeout, onTurnSkipped);
+        return;
+      }
+
       const result = roomManager.handleRematchRequest(socket.id, onRoomTimeout, onTurnSkipped);
 
       if (result.type === "rematch_started") {
@@ -655,6 +697,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
     // 8. DISCONNECT (Device sleep, tab switch, network drop)
     socket.on("disconnect", () => {
+      aiBotManager.cancelFallback(socket.id);
       matchmakingManager.leaveQueue(socket.id);
       const dcResult = roomManager.handleDisconnect(socket.id);
       if (dcResult && dcResult.type === "player_disconnected") {

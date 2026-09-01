@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, Crown, Globe2, PlayCircle, Swords, Users } from "lucide-react";
+import { Bot, ChevronRight, Crown, Globe2, Swords, Users } from "lucide-react";
 
 import { AppShell, SectionTitle } from "../components/AppShell";
 import { KbachDivider } from "../components/KhmerOrnament";
@@ -15,12 +15,13 @@ export const Route = createFileRoute("/home")({
       {
         name: "description",
         content:
-          "Welcome to Ouk Chatrang, the authentic royal chess of Angkor: quick play vs AI, 2-player pass & play, online matchmaking, piece guides and traditional Khmer culture.",
+          "Welcome to Ouk Chatrang, the authentic royal chess of Angkor: online matchmaking, play vs AI, 2-player pass & play, piece guides and traditional Khmer culture.",
       },
       { property: "og:title", content: "Home — Ouk Chatrang Ancient Khmer Chess" },
       {
         property: "og:description",
-        content: "Authentic Cambodian Ouk Chaktrang pieces, royal piece guide and quick play.",
+        content:
+          "Authentic Cambodian Ouk Chaktrang pieces, online matchmaking and royal piece guide.",
       },
     ],
   }),
@@ -40,18 +41,27 @@ function HomePage() {
 
   return (
     <AppShell>
-      {/* 1. User Welcome & Quick Play Banner */}
+      {/* 1. Hero Button: CHƠI ONLINE (Direct to Online Matchmaking) */}
       <section className="kbach-frame animate-rise relative overflow-hidden rounded-3xl bg-card p-4">
         <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gold/20 blur-2xl" />
         <Link
-          to="/play"
+          to="/online"
           className="shimmer-sheen bg-royal flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-primary-foreground shadow-gold transition-transform duration-300 active:scale-[0.98]"
         >
-          <span className="flex items-center gap-2.5">
-            <PlayCircle className="h-6 w-6 text-gold" />
-            <span className="font-serif text-base font-semibold">{t("quick_play_ai")}</span>
+          <span className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/20 border border-gold/40 text-gold">
+              <Globe2 className="h-5 w-5 animate-pulse" />
+            </div>
+            <div className="min-w-0">
+              <span className="block font-serif text-base font-bold tracking-wide text-gold-light">
+                {t("play_online_hero")}
+              </span>
+              <span className="block text-[11px] text-white/80 font-medium">
+                {t("play_online_hero_desc")}
+              </span>
+            </div>
           </span>
-          <ChevronRight className="h-5 w-5 text-gold-light" />
+          <ChevronRight className="h-5 w-5 text-gold-light shrink-0" />
         </Link>
       </section>
 
@@ -59,9 +69,27 @@ function HomePage() {
         <KbachDivider />
       </div>
 
-      {/* Game Modes: 2 Players Local & Online Match */}
+      {/* 2. Game Modes: [Đấu với AI] and [2 người cùng máy] */}
       <SectionTitle icon={Swords}>{t("game_modes")}</SectionTitle>
       <div className="animate-rise grid grid-cols-2 gap-3">
+        {/* [Đấu với AI] */}
+        <Link
+          to="/play"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"
+        >
+          <div className="flex items-start justify-between">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl border border-gold/40 bg-secondary text-gold-dark transition-transform duration-300 group-hover:scale-105">
+              <Bot className="h-5 w-5" />
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-gold" />
+          </div>
+          <div className="mt-4">
+            <h4 className="font-serif text-sm font-semibold text-foreground">{t("play_vs_ai")}</h4>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("play_vs_ai_desc")}</p>
+          </div>
+        </Link>
+
+        {/* [2 người cùng máy] */}
         <Link
           to="/play"
           search={{ mode: "local" }}
@@ -76,25 +104,6 @@ function HomePage() {
           <div className="mt-4">
             <h4 className="font-serif text-sm font-semibold text-foreground">{t("local_2p")}</h4>
             <p className="mt-0.5 text-[11px] text-muted-foreground">{t("local_2p_desc")}</p>
-          </div>
-        </Link>
-
-        <Link
-          to="/online"
-          search={{ debug: "static" }}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"
-        >
-          <div className="flex items-start justify-between">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl border border-jade/40 bg-jade/10 text-jade transition-transform duration-300 group-hover:scale-105">
-              <Globe2 className="h-5 w-5" />
-            </span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-gold" />
-          </div>
-          <div className="mt-4">
-            <h4 className="font-serif text-sm font-semibold text-foreground">
-              {t("online_match")}
-            </h4>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("online_match_desc")}</p>
           </div>
         </Link>
       </div>

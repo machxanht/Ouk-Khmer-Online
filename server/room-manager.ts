@@ -45,6 +45,8 @@ export class RoomManager {
       joinedAt: p1.joinedAt,
       connected: true,
       disconnectedAt: null,
+      isBot: p1.isBot,
+      rating: p1.rating,
     };
 
     const playerB: PlayerInfo = {
@@ -57,7 +59,11 @@ export class RoomManager {
       joinedAt: p2.joinedAt,
       connected: true,
       disconnectedAt: null,
+      isBot: p2.isBot,
+      rating: p2.rating,
     };
+
+    const isBotRoom = Boolean(p1.isBot || p2.isBot);
 
     const room: Room = {
       id: roomId,
@@ -71,6 +77,7 @@ export class RoomManager {
       },
       gameState,
       createdAt: Date.now(),
+      isBotRoom,
     };
 
     this.rooms.set(roomId, room);

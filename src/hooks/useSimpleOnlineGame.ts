@@ -299,6 +299,17 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setDrawOfferSent(false);
       setDrawOfferReceived(false);
       setOpponentNotice(null);
+
+      // Record ELO & match stats for online game
+      if (playerColor) {
+        const isWin = data.winner === playerColor;
+        const isDraw = data.winner === "draw";
+        const outcome = isWin ? "win" : isDraw ? "draw" : "loss";
+        const opponentRating = opponent?.rating || 1200;
+        authManager.recordOnlineMatchResult(outcome, opponentRating).catch((err) => {
+          console.warn("Failed to record online match ELO:", err);
+        });
+      }
     });
 
     const unsubDrawOffered = onlineClient.on("game:draw_offered", (_data: DrawOfferedPayload) => {

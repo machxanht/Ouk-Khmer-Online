@@ -11,9 +11,9 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users Collection: Each user can only read and write their own profile document
+    // Users Collection: Public read for ranking/leaderboards, owner-only write
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
       allow update: if isOwner(userId) && request.resource.data.uid == userId;
       allow delete: if false; // Disallow raw deletion from client for security

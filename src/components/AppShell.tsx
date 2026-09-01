@@ -3,6 +3,7 @@ import { Crown, Gamepad2, GraduationCap, Home, Settings, Users } from "lucide-re
 import { type ReactNode, useState } from "react";
 
 import { useI18n } from "../lib/i18n";
+import { useOnlineCount } from "../hooks/useOnlineCount";
 import { KbachDivider, LotusMandala } from "./KhmerOrnament";
 import { AccountHeader } from "./AccountHeader";
 import { AuthModal } from "./AuthModal";
@@ -33,7 +34,8 @@ export function AppShell({
   showAccountBar?: boolean;
   compact?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const { formatted: onlineText } = useOnlineCount(lang);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [nameModalOpen, setNameModalOpen] = useState(false);
@@ -71,7 +73,7 @@ export function AppShell({
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-jade opacity-75" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-jade" />
                 </span>
-                <span className="truncate">{t("online_count")}</span>
+                <span className="truncate">{onlineText}</span>
               </div>
             </div>
           </div>

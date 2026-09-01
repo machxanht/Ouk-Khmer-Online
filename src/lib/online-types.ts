@@ -57,7 +57,14 @@ export interface GameStartPayload {
   pin?: string;
   sessionToken?: string;
   color: Color;
-  opponent: { name: string; uid?: string; photoURL?: string | null; connected?: boolean };
+  opponent: {
+    name: string;
+    uid?: string;
+    photoURL?: string | null;
+    connected?: boolean;
+    rating?: number;
+    isBot?: boolean;
+  };
   board: Board;
   turn: Color;
   status: Status;
@@ -81,7 +88,14 @@ export interface GameReconnectedPayload {
   pin?: string;
   sessionToken?: string;
   color: Color;
-  opponent: { name: string; uid?: string; photoURL?: string | null; connected?: boolean };
+  opponent: {
+    name: string;
+    uid?: string;
+    photoURL?: string | null;
+    connected?: boolean;
+    rating?: number;
+    isBot?: boolean;
+  };
   board: Board;
   turn: Color;
   status: Status;
