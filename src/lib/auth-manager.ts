@@ -16,7 +16,18 @@ import {
   inMemoryPersistence,
   ActionCodeSettings,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  serverTimestamp,
+} from "firebase/firestore";
 import { auth, db, googleProvider, facebookProvider } from "./firebase";
 import { onlineClient } from "./online-client";
 import { calculateElo, type EloUpdateResult } from "./elo";
@@ -441,6 +452,42 @@ class AuthManager {
 
     this.notifyListeners();
     return this.currentProfile;
+  }
+
+  public async fetchLeaderboard(limitCount = 50): Promise<UserProfile[]> {
+    try {
+      const usersCol = collection(db, "users");
+      const q = query(usersCol, orderBy("rating", "desc"), limit(limitCount));
+      const querySnapshot = await getDocs(q);
+      const profiles: UserProfile[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data && (data.displayName || data.email)) {
+          profiles.push({
+            uid: docSnap.id,
+            email: data.email || null,
+            displayName: data.displayName || "Kỳ thủ",
+            photoURL: data.photoURL || null,
+            emailVerified: Boolean(data.emailVerified),
+            providerId: data.providerId || "password",
+            rating: typeof data.rating === "number" ? data.rating : 1200,
+            peakRating:
+              typeof data.peakRating === "number" ? data.peakRating : data.rating || 1200,
+            wins: typeof data.wins === "number" ? data.wins : 0,
+            losses: typeof data.losses === "number" ? data.losses : 0,
+            draws: typeof data.draws === "number" ? data.draws : 0,
+            winStreak: typeof data.winStreak === "number" ? data.winStreak : 0,
+            gamesPlayed: typeof data.gamesPlayed === "number" ? data.gamesPlayed : 0,
+            createdAt: typeof data.createdAt === "number" ? data.createdAt : Date.now(),
+            updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : Date.now(),
+          });
+        }
+      });
+      return profiles;
+    } catch (err) {
+      console.warn("Error fetching real leaderboard from Firestore:", err);
+      return [];
+    }
   }
 
   public getPlayerDisplayName(guestFallback = "Khách vãng lai"): string {

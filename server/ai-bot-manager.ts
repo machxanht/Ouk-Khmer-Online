@@ -205,8 +205,21 @@ export class AIBotManager {
       return;
     }
 
-    // Human-like thinking delay: 1200ms to 2800ms
-    const thinkDelay = 1200 + Math.floor(Math.random() * 1600);
+    // Dynamic situation-aware thinking delay:
+    // - If in check: longer deliberate contemplation (2200ms - 3600ms)
+    // - Opening game (< 6 moves): faster intuitive play (1100ms - 1900ms)
+    // - Complex midgame: varied human deliberation (1400ms - 3100ms)
+    const isUnderCheck = Boolean(room.gameState.isCheck);
+    const moveCount = room.gameState.moveHistory?.length || 0;
+
+    let thinkDelay: number;
+    if (isUnderCheck) {
+      thinkDelay = 2200 + Math.floor(Math.random() * 1400);
+    } else if (moveCount < 6) {
+      thinkDelay = 1100 + Math.floor(Math.random() * 800);
+    } else {
+      thinkDelay = 1400 + Math.floor(Math.random() * 1700);
+    }
 
     room.botTurnTimer = setTimeout(() => {
       room.botTurnTimer = null;
@@ -217,8 +230,8 @@ export class AIBotManager {
       }
 
       const ruleset: OukRuleSet = getRuleSet(room.rulesetId);
-      // Level 3/4 AI search depth
-      const aiDepth = 3;
+      // Strictly AI Level 3 or Level 4 search depth (Level 4 for higher rated bots or tactical deep spots)
+      const aiDepth = (botPlayer.rating && botPlayer.rating >= 1620) ? 4 : 3;
       const computedMove = bestMove(room.gameState.board, botColor, aiDepth, ruleset);
 
       if (!computedMove) {
