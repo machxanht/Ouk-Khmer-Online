@@ -2,6 +2,8 @@ import {
   User as FirebaseUser,
   onAuthStateChanged as onFirebaseAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -12,6 +14,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   inMemoryPersistence,
+  ActionCodeSettings,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider, facebookProvider } from "./firebase";
@@ -33,6 +36,23 @@ export interface UserProfile {
 export type AuthStateCallback = (user: FirebaseUser | null, profile?: UserProfile | null) => void;
 
 /**
+ * Standard ActionCodeSettings pointing to the production web application.
+ */
+function getActionCodeSettings(): ActionCodeSettings {
+  const url =
+    typeof window !== "undefined" &&
+    window.location.origin.startsWith("http") &&
+    !window.location.origin.includes("localhost")
+      ? window.location.origin
+      : "https://ouk-khmer-online.vercel.app";
+
+  return {
+    url,
+    handleCodeInApp: true,
+  };
+}
+
+/**
  * Translates Firebase Auth error codes into human-readable messages.
  */
 export function translateFirebaseAuthError(err: unknown): string {
@@ -43,7 +63,7 @@ export function translateFirebaseAuthError(err: unknown): string {
 
   switch (code) {
     case "auth/unauthorized-domain":
-      return "Tên miền này chưa được cấp phép trong Firebase Auth. Vui lòng thêm 'ouk-khmer-online.vercel.app' vào Firebase Console > Authentication > Settings > Authorized domains. (Domain unauthorized)";
+      return "Tên miền này chưa được cấp phép trong Firebase Auth. Vui lòng thêm domain (bao gồm ouk-khmer-online.vercel.app, localhost) vào Firebase Console > Authentication > Settings > Authorized domains.";
     case "auth/popup-blocked":
       return "Cửa sổ đăng nhập đã bị trình duyệt chặn (Popup Blocked). Vui lòng nhấn Cho phép mở popup và thử lại.";
     case "auth/popup-closed-by-user":
@@ -62,12 +82,27 @@ export function translateFirebaseAuthError(err: unknown): string {
     case "auth/network-request-failed":
       return "Lỗi kết nối mạng tới Firebase. Vui lòng kiểm tra lại kết nối internet.";
     case "auth/operation-not-allowed":
-      return "Phương thức đăng nhập này chưa được kích hoạt trong Firebase Console.";
+      return "Phương thức đăng nhập này chưa được kích hoạt trong Firebase Console (Authentication > Sign-in method).";
+    case "auth/invalid-action":
+    case "auth/invalid-action-code":
+    case "auth/invalid-req-type":
+      return "Yêu cầu xác thực không hợp lệ. Vui lòng kiểm tra lại kết nối hoặc thử lại sau.";
+    case "auth/configuration-not-found":
+      return "Cấu hình OAuth nhà cung cấp chưa được thiết lập trong Firebase Console.";
+    case "auth/account-exists-with-different-credential":
+      return "Tài khoản đã tồn tại với một phương thức đăng nhập khác (Google / Email).";
+    case "auth/user-disabled":
+      return "Tài khoản này đã bị tạm khóa.";
+    case "auth/requires-recent-login":
+      return "Vui lòng đăng nhập lại để thực hiện thao tác bảo mật này.";
     case "auth/too-many-requests":
       return "Quá nhiều yêu cầu đăng nhập. Vui lòng đợi trong giây lát và thử lại.";
     default:
       if (rawMsg.includes("unauthorized-domain") || rawMsg.includes("authorized domain")) {
         return "Domain chưa được cấp phép trong Firebase Auth. Vui lòng thêm domain vào Firebase Console > Authentication > Settings > Authorized domains.";
+      }
+      if (rawMsg.includes("The requested action is invalid") || rawMsg.includes("invalid-action")) {
+        return "Yêu cầu xác thực không hợp lệ hoặc liên kết đã hết hạn.";
       }
       return (
         rawMsg
@@ -91,7 +126,7 @@ class AuthManager {
   }
 
   private async init() {
-    // Attempt to set persistent session with safe fallbacks for mobile browsers/iframes
+    // Attempt to set persistent session with safe fallbacks for mobile browsers/iframes/webviews
     try {
       await setPersistence(auth, browserLocalPersistence);
     } catch {
@@ -104,6 +139,18 @@ class AuthManager {
           // ignore
         }
       }
+    }
+
+    // Check if returning from a redirect auth flow (mobile WebView fallback)
+    try {
+      const redirectResult = await getRedirectResult(auth);
+      if (redirectResult && redirectResult.user) {
+        this.currentUser = redirectResult.user;
+        this.currentProfile = await this.syncUserProfile(redirectResult.user);
+        this.notifyListeners();
+      }
+    } catch (redirectErr) {
+      console.warn("Firebase redirect auth check notice:", redirectErr);
     }
 
     try {
@@ -345,9 +392,15 @@ class AuthManager {
         await updateProfile(cred.user, { displayName: cleanName });
       }
       try {
-        await sendEmailVerification(cred.user);
+        const actionCodeSettings = getActionCodeSettings();
+        await sendEmailVerification(cred.user, actionCodeSettings);
       } catch (e) {
-        console.warn("Failed to send verification email:", e);
+        // Fallback without actionCodeSettings
+        try {
+          await sendEmailVerification(cred.user);
+        } catch {
+          console.warn("Email verification send notice:", e);
+        }
       }
       this.currentProfile = await this.syncUserProfile(cred.user);
       if (cleanName) {
@@ -373,35 +426,82 @@ class AuthManager {
     return this.loginWithGoogle();
   }
 
-  public async loginWithGoogle(): Promise<FirebaseUser> {
+  public async loginWithGoogle(): Promise<FirebaseUser | null> {
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       this.currentProfile = await this.syncUserProfile(cred.user);
       return cred.user;
-    } catch (err) {
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code || "";
+      const isMobileOrCapacitor =
+        typeof window !== "undefined" &&
+        (window.location.protocol === "capacitor:" ||
+          window.location.hostname === "localhost" ||
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+
+      if (
+        isMobileOrCapacitor &&
+        (code === "auth/popup-blocked" ||
+          code === "auth/unauthorized-domain" ||
+          code === "auth/invalid-action" ||
+          code === "auth/popup-closed-by-user")
+      ) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return null;
+        } catch (redirectErr: unknown) {
+          throw new Error(translateFirebaseAuthError(redirectErr));
+        }
+      }
       throw new Error(translateFirebaseAuthError(err));
     }
   }
 
-  public async signInWithFacebook(): Promise<FirebaseUser> {
+  public async signInWithFacebook(): Promise<FirebaseUser | null> {
     return this.loginWithFacebook();
   }
 
-  public async loginWithFacebook(): Promise<FirebaseUser> {
+  public async loginWithFacebook(): Promise<FirebaseUser | null> {
     try {
       const cred = await signInWithPopup(auth, facebookProvider);
       this.currentProfile = await this.syncUserProfile(cred.user);
       return cred.user;
-    } catch (err) {
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code || "";
+      const isMobileOrCapacitor =
+        typeof window !== "undefined" &&
+        (window.location.protocol === "capacitor:" ||
+          window.location.hostname === "localhost" ||
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+
+      if (
+        isMobileOrCapacitor &&
+        (code === "auth/popup-blocked" ||
+          code === "auth/unauthorized-domain" ||
+          code === "auth/invalid-action" ||
+          code === "auth/popup-closed-by-user")
+      ) {
+        try {
+          await signInWithRedirect(auth, facebookProvider);
+          return null;
+        } catch (redirectErr: unknown) {
+          throw new Error(translateFirebaseAuthError(redirectErr));
+        }
+      }
       throw new Error(translateFirebaseAuthError(err));
     }
   }
 
   public async sendPasswordReset(email: string): Promise<void> {
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      const actionCodeSettings = getActionCodeSettings();
+      await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
     } catch (err) {
-      throw new Error(translateFirebaseAuthError(err));
+      try {
+        await sendPasswordResetEmail(auth, email.trim());
+      } catch (fallbackErr) {
+        throw new Error(translateFirebaseAuthError(fallbackErr));
+      }
     }
   }
 
@@ -412,9 +512,14 @@ class AuthManager {
   public async resendVerification(): Promise<void> {
     if (this.currentUser) {
       try {
-        await sendEmailVerification(this.currentUser);
+        const actionCodeSettings = getActionCodeSettings();
+        await sendEmailVerification(this.currentUser, actionCodeSettings);
       } catch (err) {
-        throw new Error(translateFirebaseAuthError(err));
+        try {
+          await sendEmailVerification(this.currentUser);
+        } catch (fallbackErr) {
+          throw new Error(translateFirebaseAuthError(fallbackErr));
+        }
       }
     }
   }
