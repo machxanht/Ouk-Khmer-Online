@@ -79,32 +79,22 @@ function OnlineMatchPage() {
   } = useSimpleOnlineGame(initialName);
 
   // Local Lobby State
-  const [playerNameInput, setPlayerNameInput] = useState(initialName);
   const [selectedGameMode, setSelectedGameMode] = useState<OnlineGameMode>("folk");
+  const [matchType, setMatchType] = useState<"random" | "create" | "join">("random");
   const [pinInput, setPinInput] = useState("");
   const [copied, setCopied] = useState(false);
   const [showVolumePopover, setShowVolumePopover] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState(authManager.getCurrentProfile());
 
   useEffect(() => {
     const unsub = authManager.onAuthChange((u, p) => {
       setIsAuthenticated(u !== null);
-      if (p?.displayName) {
-        setPlayerNameInput(p.displayName);
-      } else if (u?.displayName) {
-        setPlayerNameInput(u.displayName);
-      }
+      setCurrentProfile(p || null);
     });
     return unsub;
   }, []);
 
-  const handleNameChange = (name: string) => {
-    setPlayerNameInput(name);
-    try {
-      localStorage.setItem("ouk_online_player_name", name);
-    } catch {
-      // ignore
-    }
-  };
+  const playerName = currentProfile?.displayName || authManager.getPlayerDisplayName();
 
   const copyPin = useCallback(() => {
     if (!room?.pin) return;
@@ -115,24 +105,22 @@ function OnlineMatchPage() {
     setTimeout(() => setCopied(false), 2000);
   }, [room?.pin]);
 
-  const handleStartQuickMatch = () => {
+  const handleStartMatch = () => {
     const rulesetId = selectedGameMode === "folk" ? "folk" : "international";
     const timeControl =
       selectedGameMode === "blitz"
         ? { type: "blitz" as const, initialSeconds: 300 }
         : { type: "standard" as const, initialSeconds: 3600 };
 
-    startMatchmaking(playerNameInput, rulesetId, selectedGameMode, timeControl);
-  };
-
-  const handleCreatePrivateRoom = () => {
-    const rulesetId = selectedGameMode === "folk" ? "folk" : "international";
-    const timeControl =
-      selectedGameMode === "blitz"
-        ? { type: "blitz" as const, initialSeconds: 300 }
-        : { type: "standard" as const, initialSeconds: 3600 };
-
-    createPrivateRoom(playerNameInput, rulesetId, selectedGameMode, timeControl);
+    if (matchType === "random") {
+      startMatchmaking(playerName, rulesetId, selectedGameMode, timeControl);
+    } else if (matchType === "create") {
+      createPrivateRoom(playerName, rulesetId, selectedGameMode, timeControl);
+    } else if (matchType === "join") {
+      if (pinInput.trim().length === 6) {
+        joinPrivateRoom(pinInput.trim(), playerName);
+      }
+    }
   };
 
   const volumeControl = (
@@ -452,61 +440,63 @@ function OnlineMatchPage() {
           </div>
         )}
 
-        {/* Player Profile & Authentication Section */}
-        <div className="space-y-2">
-          <SectionTitle icon={UserRound}>{t("auth_profile")}</SectionTitle>
-          <UserProfileCard onOpenAuth={() => setAuthModalOpen(true)} />
-          <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-          <PlayerNameModal
-            isOpen={nameModalOpen}
-            onClose={() => setNameModalOpen(false)}
-            onSuccess={(newName) => setPlayerNameInput(newName)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <SectionTitle icon={UserRound}>{t("player_name")}</SectionTitle>
-            <button
-              type="button"
-              onClick={() => setNameModalOpen(true)}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-gold-dark hover:underline"
-            >
-              <Edit2 className="h-3 w-3" />
-              <span>{t("auth_edit_name")}</span>
-            </button>
-          </div>
-          <div className="p-3.5 rounded-3xl bg-card border border-border/80 shadow-sm flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-gold/40 bg-secondary text-gold-dark shrink-0">
-              <User className="w-5 h-5" />
+        {/* Player Badge (Clean & Compact) */}
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+          <div className="flex items-center gap-3">
+            {currentProfile?.photoURL ? (
+              <img
+                src={currentProfile.photoURL}
+                alt={playerName}
+                className="h-9 w-9 rounded-xl border border-gold/40 object-cover"
+              />
+            ) : (
+              <div className="grid h-9 w-9 place-items-center rounded-xl border border-gold/40 bg-secondary text-gold-dark font-serif font-bold text-xs">
+                {(playerName || "K")[0].toUpperCase()}
+              </div>
+            )}
+            <div>
+              <span className="flex items-center gap-1.5 font-serif text-xs font-bold text-foreground">
+                <span>{playerName}</span>
+                <span className="rounded bg-gold/20 px-1.5 py-0.2 text-[9px] font-bold text-gold-dark">
+                  {currentProfile?.rating || 1200} ELO
+                </span>
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {currentProfile?.wins || 0}W - {currentProfile?.losses || 0}L
+                {currentProfile?.winStreak && currentProfile.winStreak > 1
+                  ? ` • 🔥 ${currentProfile.winStreak} streak`
+                  : ""}
+              </span>
             </div>
-            <input
-              type="text"
-              value={playerNameInput}
-              maxLength={30}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder={t("enter_player_name")}
-              className="flex-1 bg-background border border-border rounded-xl px-3.5 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-gold/40 focus:border-gold"
-            />
           </div>
+          <button
+            type="button"
+            onClick={() => setAuthModalOpen(true)}
+            className="text-[11px] font-semibold text-gold-dark hover:underline flex items-center gap-1"
+          >
+            <UserRound className="h-3 w-3" />
+            <span>Tài khoản</span>
+          </button>
         </div>
 
-        <div className="my-2">
-          <KbachDivider />
-        </div>
+        {/* BƯỚC 1: CHỌN LUẬT CỜ */}
+        <div className="space-y-2.5 pt-1">
+          <div className="flex items-center justify-between">
+            <SectionTitle icon={Scroll}>{t("step_1_ruleset")}</SectionTitle>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/10 px-2 py-0.5 rounded-md border border-gold/20">
+              1 / 3
+            </span>
+          </div>
 
-        {/* Section 2: Choose Game Mode (Folk 60m / International 60m / Blitz 5m) */}
-        <div className="space-y-3">
-          <SectionTitle icon={Scroll}>{t("ruleset_selection")}</SectionTitle>
           <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border bg-card p-1.5 shadow-xs">
             {/* 1. Folk (60m) */}
             <button
               type="button"
               onClick={() => setSelectedGameMode("folk")}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-1 text-center transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
                 selectedGameMode === "folk"
-                  ? "bg-royal text-primary-foreground shadow-sm font-bold"
-                  : "text-muted-foreground hover:text-foreground font-medium"
+                  ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium"
               }`}
             >
               <Shield className="h-4 w-4 shrink-0" />
@@ -518,10 +508,10 @@ function OnlineMatchPage() {
             <button
               type="button"
               onClick={() => setSelectedGameMode("international")}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-1 text-center transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
                 selectedGameMode === "international"
-                  ? "bg-royal text-primary-foreground shadow-sm font-bold"
-                  : "text-muted-foreground hover:text-foreground font-medium"
+                  ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium"
               }`}
             >
               <Trophy className="h-4 w-4 shrink-0" />
@@ -535,10 +525,10 @@ function OnlineMatchPage() {
             <button
               type="button"
               onClick={() => setSelectedGameMode("blitz")}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-1 text-center transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
                 selectedGameMode === "blitz"
-                  ? "bg-royal text-primary-foreground shadow-sm font-bold"
-                  : "text-muted-foreground hover:text-foreground font-medium"
+                  ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium"
               }`}
             >
               <Zap className="h-4 w-4 shrink-0" />
@@ -549,162 +539,234 @@ function OnlineMatchPage() {
             </button>
           </div>
 
-          {/* Active Ruleset Summary Card */}
-          <div className="rounded-2xl border border-border bg-card/60 p-3.5 animate-rise">
-            <div className="flex items-center justify-between pb-2 border-b border-border/50">
-              <span className="font-serif text-xs font-bold text-foreground">
+          {/* Ruleset Summary Info */}
+          <div className="rounded-2xl border border-border bg-card/60 p-3 text-[11px] text-muted-foreground">
+            {selectedGameMode === "folk" && (
+              <p className="leading-relaxed">
+                <strong className="text-foreground">{t("mode_folk_60m")}</strong>:{" "}
+                {t("mode_folk_60m_desc")}
+              </p>
+            )}
+            {selectedGameMode === "international" && (
+              <p className="leading-relaxed">
+                <strong className="text-foreground">{t("mode_intl_60m")}</strong>:{" "}
+                {t("mode_intl_60m_desc")}
+              </p>
+            )}
+            {selectedGameMode === "blitz" && (
+              <p className="leading-relaxed">
+                <strong className="text-foreground">{t("mode_blitz_5m")}</strong>:{" "}
+                {t("mode_blitz_5m_desc")}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* BƯỚC 2: CHỌN CÁCH GHÉP TRẬN */}
+        <div className="space-y-2.5 pt-2">
+          <div className="flex items-center justify-between">
+            <SectionTitle icon={Swords}>{t("step_2_match_type")}</SectionTitle>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/10 px-2 py-0.5 rounded-md border border-gold/20">
+              2 / 3
+            </span>
+          </div>
+
+          <div className="grid gap-2">
+            {/* Match Type 1: Random */}
+            <button
+              type="button"
+              onClick={() => setMatchType("random")}
+              className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
+                matchType === "random"
+                  ? "border-gold bg-gold/10 shadow-sm"
+                  : "border-border bg-card hover:border-gold/50"
+              }`}
+            >
+              <div
+                className={`grid h-9 w-9 place-items-center rounded-xl border shrink-0 ${
+                  matchType === "random"
+                    ? "border-gold bg-royal text-gold-light"
+                    : "border-border bg-secondary text-muted-foreground"
+                }`}
+              >
+                <Swords className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-serif text-xs font-bold text-foreground">
+                    {t("match_type_random")}
+                  </span>
+                  {matchType === "random" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                  {t("match_type_random_desc")}
+                </p>
+              </div>
+            </button>
+
+            {/* Match Type 2: Create Private Room */}
+            <button
+              type="button"
+              onClick={() => setMatchType("create")}
+              className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
+                matchType === "create"
+                  ? "border-gold bg-gold/10 shadow-sm"
+                  : "border-border bg-card hover:border-gold/50"
+              }`}
+            >
+              <div
+                className={`grid h-9 w-9 place-items-center rounded-xl border shrink-0 ${
+                  matchType === "create"
+                    ? "border-gold bg-royal text-gold-light"
+                    : "border-border bg-secondary text-muted-foreground"
+                }`}
+              >
+                <PlusCircle className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-serif text-xs font-bold text-foreground">
+                    {t("match_type_create_room")}
+                  </span>
+                  {matchType === "create" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                  {t("match_type_create_room_desc")}
+                </p>
+              </div>
+            </button>
+
+            {/* Match Type 3: Join Private Room */}
+            <button
+              type="button"
+              onClick={() => setMatchType("join")}
+              className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
+                matchType === "join"
+                  ? "border-gold bg-gold/10 shadow-sm"
+                  : "border-border bg-card hover:border-gold/50"
+              }`}
+            >
+              <div
+                className={`grid h-9 w-9 place-items-center rounded-xl border shrink-0 ${
+                  matchType === "join"
+                    ? "border-gold bg-royal text-gold-light"
+                    : "border-border bg-secondary text-muted-foreground"
+                }`}
+              >
+                <Lock className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-serif text-xs font-bold text-foreground">
+                    {t("match_type_join_room")}
+                  </span>
+                  {matchType === "join" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                  {t("match_type_join_room_desc")}
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* BƯỚC 3: XÁC NHẬN & BẮT ĐẦU */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <SectionTitle icon={Sparkles}>{t("step_3_confirm_start")}</SectionTitle>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/10 px-2 py-0.5 rounded-md border border-gold/20">
+              3 / 3
+            </span>
+          </div>
+
+          {/* Summary Card */}
+          <div className="kbach-frame rounded-2xl border border-gold/40 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between text-xs pb-2.5 border-b border-border/50">
+              <span className="font-semibold text-muted-foreground">{t("match_summary")}</span>
+              <span className="font-serif font-bold text-gold-dark">
                 {selectedGameMode === "folk"
-                  ? t("mode_folk_60m")
+                  ? t("folk_ruleset")
                   : selectedGameMode === "international"
-                    ? t("mode_intl_60m")
-                    : t("mode_blitz_5m")}
-              </span>
-              <span className="text-[11px] font-medium text-gold-dark">
-                {selectedGameMode === "blitz" ? "⚡ Blitz" : "60m + AFK"}
+                    ? t("international_ruleset")
+                    : t("blitz_ruleset_tag")}{" "}
+                ({selectedGameMode === "blitz" ? "05:00" : "60:00"})
               </span>
             </div>
-            <ul className="grid gap-1 pt-2 text-[11px] text-muted-foreground">
-              {selectedGameMode === "folk" && (
-                <>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("folk_ruleset_desc_1")}
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("folk_ruleset_desc_2")}
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("mode_folk_60m_desc")}
-                  </li>
-                </>
-              )}
-              {selectedGameMode === "international" && (
-                <>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("international_ruleset_desc_1")}
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("international_ruleset_desc_2")}
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("mode_intl_60m_desc")}
-                  </li>
-                </>
-              )}
-              {selectedGameMode === "blitz" && (
-                <>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("blitz_ruleset_desc_1")}
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("blitz_ruleset_desc_2")}
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-gold" />
-                    {t("international_ruleset_desc_1")}
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
-        </div>
 
-        <div className="my-2">
-          <KbachDivider />
-        </div>
-
-        {/* Section 3: Modes (Quick Match & Private Match) */}
-        <div className="space-y-4">
-          <SectionTitle icon={Swords}>{t("game_modes")}</SectionTitle>
-
-          {/* Mode 1: ĐẤU NGẪU NHIÊN (Random Matchmaking) */}
-          <div className="kbach-frame relative overflow-hidden rounded-3xl border border-gold/40 bg-card p-4 transition-all duration-300">
-            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gold/20 blur-2xl pointer-events-none" />
-            <div className="flex items-start gap-3.5">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl border border-gold/40 bg-secondary text-gold-dark shrink-0 shadow-sm">
-                <Swords className="w-6 h-6" />
+            <div className="grid grid-cols-2 gap-2 pt-2.5 text-[11px]">
+              <div>
+                <span className="text-muted-foreground block">{t("current_player_badge")}</span>
+                <span className="font-semibold text-foreground truncate block">{playerName}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-serif text-base font-semibold text-foreground">
-                  {t("quick_match")}
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                  {t("quick_match_desc")}
-                </p>
+              <div>
+                <span className="text-muted-foreground block">Hình thức ghép</span>
+                <span className="font-semibold text-foreground truncate block">
+                  {matchType === "random"
+                    ? t("match_type_random")
+                    : matchType === "create"
+                      ? t("match_type_create_room")
+                      : t("match_type_join_room")}
+                </span>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleStartQuickMatch}
-              disabled={connectionStatus !== "connected"}
-              className="shimmer-sheen bg-royal mt-4 flex items-center justify-center gap-2.5 w-full rounded-2xl px-4 py-3.5 font-serif text-base font-semibold text-primary-foreground shadow-gold transition-transform duration-300 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
-            >
-              <Sparkles className="h-5 w-5" />
-              <span>{t("find_match")}</span>
-            </button>
-          </div>
-
-          {/* Mode 2: PHÒNG RIÊNG (Private Room - Create PIN / Join PIN) */}
-          <div className="rounded-3xl border border-border bg-card p-4 transition-all duration-300 space-y-3.5">
-            <div className="flex items-start gap-3.5">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-gold/40 bg-secondary text-gold-dark shrink-0">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-serif text-sm font-semibold text-foreground">
-                  {t("private_match")}
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                  {t("online_matchmaking_desc")}
-                </p>
-              </div>
-            </div>
-
-            {/* Sub-action A: Create Room & get PIN */}
-            <button
-              type="button"
-              onClick={handleCreatePrivateRoom}
-              disabled={connectionStatus !== "connected"}
-              className="flex items-center justify-center gap-2 w-full rounded-2xl border border-gold/40 bg-secondary/80 py-3 px-4 font-serif text-xs font-semibold text-foreground transition-all duration-300 hover:border-gold hover:bg-gold/10 active:scale-95 disabled:opacity-50"
-            >
-              <PlusCircle className="h-4 w-4 text-gold-dark" />
-              <span>{t("create_room_pin")}</span>
-            </button>
-
-            {/* Sub-action B: Enter PIN to Join */}
-            <div className="pt-2 border-t border-border/50">
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-2 block">
-                {t("enter_pin")}
-              </span>
-              <div className="flex gap-2">
+            {/* Input PIN if Join Mode */}
+            {matchType === "join" && (
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">
+                  {t("enter_pin_prompt")}
+                </label>
                 <input
                   type="text"
                   maxLength={6}
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
                   placeholder="------"
-                  className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-center font-mono text-sm tracking-widest text-foreground focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/40"
+                  className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-center font-mono text-base tracking-[0.25em] font-bold text-foreground focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/40"
                 />
-                <button
-                  type="button"
-                  onClick={() => joinPrivateRoom(pinInput, playerNameInput)}
-                  disabled={connectionStatus !== "connected" || pinInput.length !== 6}
-                  className="shimmer-sheen bg-royal rounded-xl px-4 py-2 font-serif text-xs font-semibold text-primary-foreground shadow-gold transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {t("join")}
-                </button>
               </div>
+            )}
+
+            {/* Final Action Button */}
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleStartMatch}
+                disabled={
+                  connectionStatus !== "connected" ||
+                  (matchType === "join" && pinInput.trim().length !== 6)
+                }
+                className="shimmer-sheen bg-royal flex items-center justify-center gap-2 w-full rounded-2xl px-4 py-3.5 font-serif text-sm font-bold text-gold-light shadow-gold transition-transform duration-300 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {matchType === "random" ? (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    <span>{t("btn_find_match")}</span>
+                  </>
+                ) : matchType === "create" ? (
+                  <>
+                    <PlusCircle className="h-4 w-4" />
+                    <span>{t("btn_create_room_pin")}</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4" />
+                    <span>{t("btn_join_room_pin")}</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
+
+        <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+        <PlayerNameModal
+          isOpen={nameModalOpen}
+          onClose={() => setNameModalOpen(false)}
+          onSuccess={(newName) => {
+            setCurrentProfile(authManager.getCurrentProfile());
+          }}
+        />
       </div>
     </AppShell>
   );

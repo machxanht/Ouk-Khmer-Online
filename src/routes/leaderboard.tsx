@@ -1,15 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Crown,
-  Flame,
-  Globe2,
-  Medal,
-  RefreshCw,
-  Swords,
-  Trophy,
-  User,
-  Zap,
-} from "lucide-react";
+import { Crown, Flame, Globe2, Medal, RefreshCw, Swords, Trophy, User, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AppShell, SectionTitle } from "../components/AppShell";

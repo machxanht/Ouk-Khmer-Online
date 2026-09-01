@@ -370,6 +370,23 @@ const en: Dict = {
   auth_player_name_label: "Player Name",
   auth_unauthorized_domain_msg:
     "Domain is not authorized in Firebase Auth. Please add ouk-khmer-online.vercel.app to Firebase Console > Authentication > Settings > Authorized Domains.",
+  step_1_ruleset: "Step 1: Choose Ruleset",
+  step_2_match_type: "Step 2: Choose Match Type",
+  step_3_confirm_start: "Step 3: Confirm & Start",
+  match_type_random: "Random Match",
+  match_type_random_desc:
+    "Automatically match with an online player worldwide or master AI fallback.",
+  match_type_create_room: "Create Private Room",
+  match_type_create_room_desc:
+    "Create a private room and get a 6-digit PIN code to invite friends.",
+  match_type_join_room: "Join Room by PIN",
+  match_type_join_room_desc: "Enter the 6-digit PIN shared by your friend to join the match.",
+  match_summary: "Match Summary",
+  current_player_badge: "Player",
+  btn_find_match: "Find Match Now",
+  btn_create_room_pin: "Create Room & Get PIN",
+  btn_join_room_pin: "Join Room",
+  enter_pin_prompt: "Enter 6-digit PIN code",
 };
 
 const km: Dict = {
@@ -969,6 +986,22 @@ const vi: Dict = {
   auth_player_name_label: "Tên kỳ thủ",
   auth_unauthorized_domain_msg:
     "Domain chưa được cấp phép trong Firebase Auth. Vui lòng thêm ouk-khmer-online.vercel.app vào Firebase Console > Authentication > Settings > Authorized Domains.",
+  step_1_ruleset: "Bước 1: Chọn luật cờ",
+  step_2_match_type: "Bước 2: Chọn cách ghép trận",
+  step_3_confirm_start: "Bước 3: Xác nhận & Bắt đầu",
+  match_type_random: "Đấu ngẫu nhiên",
+  match_type_random_desc:
+    "Tự động tìm kiếm kỳ thủ online tương xứng trên toàn cầu hoặc AI bậc thầy.",
+  match_type_create_room: "Tạo phòng mới",
+  match_type_create_room_desc: "Tạo phòng thi đấu riêng và nhận mã PIN 6 số để chia sẻ cho bạn bè.",
+  match_type_join_room: "Tham gia phòng",
+  match_type_join_room_desc: "Nhập mã PIN 6 số do bạn bè gửi để vào phòng tranh tài ngay.",
+  match_summary: "Tóm tắt cấu hình trận đấu",
+  current_player_badge: "Kỳ thủ thi đấu",
+  btn_find_match: "Tìm trận ngay",
+  btn_create_room_pin: "Tạo phòng & Lấy mã PIN",
+  btn_join_room_pin: "Vào phòng thi đấu",
+  enter_pin_prompt: "Nhập mã PIN 6 chữ số",
 };
 
 const fr: Dict = {

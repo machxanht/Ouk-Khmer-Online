@@ -6,6 +6,7 @@ import { KbachDivider } from "../components/KhmerOrnament";
 import { OukPiece } from "../components/OukPiece";
 import mascot from "../assets/mascot.png";
 import { useI18n } from "../lib/i18n";
+import { getDailyQuote } from "../lib/daily-quotes";
 import { PIECE_NAMES, type PieceType } from "../lib/khmer-chess";
 
 export const Route = createFileRoute("/home")({
@@ -38,6 +39,7 @@ const HOME_OUK_PIECES: PieceType[] = ["k", "q", "b", "n", "r", "p"];
 
 function HomePage() {
   const { t, lang } = useI18n();
+  const dailyQuote = getDailyQuote(lang);
 
   return (
     <AppShell>
@@ -158,8 +160,13 @@ function HomePage() {
             {t("daily_wisdom")}
           </p>
           <p className="mt-1 font-serif text-xs italic leading-relaxed text-foreground/90">
-            {t("daily_wisdom_quote")}
+            “{dailyQuote.quote}”
           </p>
+          {dailyQuote.author ? (
+            <p className="mt-1 text-[10px] font-medium text-gold-dark/80 text-right">
+              — {dailyQuote.author}
+            </p>
+          ) : null}
         </div>
       </section>
     </AppShell>

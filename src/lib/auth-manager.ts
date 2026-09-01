@@ -471,8 +471,7 @@ class AuthManager {
             emailVerified: Boolean(data.emailVerified),
             providerId: data.providerId || "password",
             rating: typeof data.rating === "number" ? data.rating : 1200,
-            peakRating:
-              typeof data.peakRating === "number" ? data.peakRating : data.rating || 1200,
+            peakRating: typeof data.peakRating === "number" ? data.peakRating : data.rating || 1200,
             wins: typeof data.wins === "number" ? data.wins : 0,
             losses: typeof data.losses === "number" ? data.losses : 0,
             draws: typeof data.draws === "number" ? data.draws : 0,
@@ -506,11 +505,13 @@ class AuthManager {
     return Boolean(name && name.trim().length >= 2);
   }
 
-  public onAuthStateChanged(cb: (user: FirebaseUser | null) => void): () => void {
-    const wrappedCb: AuthStateCallback = (user) => cb(user);
+  public onAuthStateChanged(
+    cb: (user: FirebaseUser | null, profile?: UserProfile | null) => void,
+  ): () => void {
+    const wrappedCb: AuthStateCallback = (user, profile) => cb(user, profile);
     this.listeners.add(wrappedCb);
     if (this.initialized) {
-      cb(this.currentUser);
+      cb(this.currentUser, this.currentProfile);
     }
     return () => this.listeners.delete(wrappedCb);
   }
@@ -538,6 +539,10 @@ class AuthManager {
   }
 
   public getCurrentProfile(): UserProfile | null {
+    return this.currentProfile;
+  }
+
+  public getUserProfile(): UserProfile | null {
     return this.currentProfile;
   }
 
