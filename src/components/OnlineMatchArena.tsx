@@ -461,7 +461,9 @@ export function OnlineMatchArena({
     if (matchStatus === "playing" && currentCount > lastMoveCountRef.current) {
       if (gameState.lastMove && gameState.lastMove.color === opponentColor) {
         const destPiece = gameState.board[gameState.lastMove.to];
-        if (destPiece?.type === "f" || destPiece?.type === "q") {
+        if (gameState.isCheck || gameState.status === "check") {
+          audioManager.playSfx("check");
+        } else if (destPiece?.type === "f" || destPiece?.type === "q") {
           audioManager.playSfx("promotion");
         } else {
           audioManager.playSfx("move");
@@ -469,7 +471,15 @@ export function OnlineMatchArena({
       }
     }
     lastMoveCountRef.current = currentCount;
-  }, [matchStatus, gameState.moveCount, gameState.lastMove, gameState.board, opponentColor]);
+  }, [
+    matchStatus,
+    gameState.moveCount,
+    gameState.lastMove,
+    gameState.board,
+    gameState.isCheck,
+    gameState.status,
+    opponentColor,
+  ]);
 
   const isWinner = gameState.winner === player.color;
   const isDraw = gameState.winner === "draw";
@@ -934,16 +944,21 @@ export function OnlineMatchArena({
           targets={targets}
           lastMove={gameState.lastMove || null}
           checkSquare={checkSquare}
-          showCheckBanner={gameState.status === "check" || gameState.reason === "check"}
-          showCheckmateBanner={
-            matchStatus === "finished" &&
-            (gameState.status === "checkmate" ||
-              gameState.status === "king_captured" ||
-              gameState.reason === "checkmate" ||
-              gameState.reason === "king_capture" ||
-              gameState.endReason === "checkmate" ||
-              gameState.endReason === "king_capture")
-          }
+          showCheckBanner={Boolean(
+            gameState.isCheck || gameState.status === "check" || gameState.reason === "check",
+          )}
+          showCheckmateBanner={Boolean(
+            gameState.isCheckmate ||
+            gameState.status === "checkmate" ||
+            gameState.status === "king_captured" ||
+            gameState.reason === "checkmate" ||
+            gameState.reason === "king_capture" ||
+            gameState.endReason === "checkmate" ||
+            gameState.endReason === "king_capture" ||
+            (matchStatus === "finished" &&
+              (gameState.winner === "w" || gameState.winner === "b") &&
+              (gameState.reason === "checkmate" || gameState.reason === "king_capture")),
+          )}
           flipped={isFlipped}
           onSquare={handleSquareClick}
         />

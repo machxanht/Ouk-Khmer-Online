@@ -4,7 +4,7 @@ import { type ReactNode, useState } from "react";
 
 import { useI18n } from "../lib/i18n";
 import { useOnlineCount } from "../hooks/useOnlineCount";
-import { KbachDivider, LotusMandala } from "./KhmerOrnament";
+import { AngkorSilhouette, KbachDivider, LotusMandala } from "./KhmerOrnament";
 import { AccountHeader } from "./AccountHeader";
 import { AuthModal } from "./AuthModal";
 import { PlayerNameModal } from "./PlayerNameModal";
@@ -44,8 +44,9 @@ export function AppShell({
     <div className="relative flex min-h-screen flex-col bg-background">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="temple-grain absolute inset-0 opacity-60" />
-        <LotusMandala className="animate-spin-slow absolute -right-24 -top-24 h-72 w-72 opacity-[0.18]" />
-        <LotusMandala className="animate-spin-slow absolute -left-28 bottom-10 h-64 w-64 opacity-[0.12]" />
+        <LotusMandala className="animate-spin-slow absolute -right-24 -top-24 h-72 w-72 opacity-[0.16]" />
+        <LotusMandala className="animate-spin-slow absolute -left-28 bottom-10 h-64 w-64 opacity-[0.10]" />
+        <AngkorSilhouette className="absolute inset-x-0 bottom-14 mx-auto max-w-lg h-44 text-gold opacity-[0.05]" />
       </div>
 
       {/* Main Header with Title & Branding + Online Status on Left, Auth Module on Right */}

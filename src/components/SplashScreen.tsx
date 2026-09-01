@@ -159,7 +159,7 @@ export function SplashScreen({ onFinish }: { onFinish?: () => void }) {
           }`}
         >
           <h1
-            className={`font-serif text-3xl sm:text-4xl font-bold tracking-wider ${
+            className={`khmer-splash-title text-3xl sm:text-4xl font-bold tracking-wider ${
               isNightSplash
                 ? "text-royal drop-shadow-[0_2px_12px_color-mix(in_oklab,var(--gold)_40%,transparent)]"
                 : "text-royal drop-shadow-sm"

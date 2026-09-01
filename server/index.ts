@@ -12,6 +12,17 @@ export interface RealtimeServerOptions {
 }
 
 export function registerSocketHandlers(io: SocketIOServer) {
+  const broadcastOnlineCount = () => {
+    const realCount = io.sockets.sockets.size || 0;
+    io.emit("system:online_count", {
+      realCount,
+      onlineCount: realCount + 50,
+    });
+  };
+
+  // Broadcast periodically every 15s
+  setInterval(broadcastOnlineCount, 15000);
+
   const onRoomTimeout = (
     r: any,
     winner: any,
@@ -57,6 +68,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
   io.on("connection", (socket: Socket) => {
     serverLogger.debug("SOCKET_CONNECT", { socketId: socket.id });
+    broadcastOnlineCount();
     // 1. RANDOM MATCHMAKING
     socket.on(
       "matchmaking:join",
@@ -697,6 +709,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
     // 8. DISCONNECT (Device sleep, tab switch, network drop)
     socket.on("disconnect", () => {
+      broadcastOnlineCount();
       aiBotManager.cancelFallback(socket.id);
       matchmakingManager.leaveQueue(socket.id);
       const dcResult = roomManager.handleDisconnect(socket.id);
@@ -735,16 +748,40 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
   const port = options.port ?? (process.env.PORT ? parseInt(process.env.PORT, 10) : 3001);
   const corsOrigin = options.corsOrigin ?? "*";
 
+  let ioRef: SocketIOServer | null = null;
+
   const httpServer = http.createServer((req, res) => {
+    // API endpoint for live online count
+    if (req.url === "/api/online-count") {
+      const realCount = ioRef?.sockets?.sockets?.size || 0;
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(
+        JSON.stringify({
+          realCount,
+          onlineCount: realCount + 50,
+        }),
+      );
+      return;
+    }
+
     // Health check endpoint with operator diagnostics & metrics
     if (req.url === "/health" || req.url === "/") {
-      res.writeHead(200, { "Content-Type": "application/json" });
+      const realCount = ioRef?.sockets?.sockets?.size || 0;
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
       res.end(
         JSON.stringify({
           status: "healthy",
           server: "ouk-chatrang-authoritative",
           uptime: process.uptime(),
           timestamp: Date.now(),
+          onlineCount: realCount + 50,
+          realCount,
           metrics: {
             activeRooms: roomManager.getRoomCount(),
             activePins: roomManager.getActivePinCount(),
@@ -769,6 +806,7 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
     transports: ["websocket", "polling"],
   });
 
+  ioRef = io;
   registerSocketHandlers(io);
 
   return {

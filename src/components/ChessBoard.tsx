@@ -52,7 +52,7 @@ export function ChessBoard({
     } else {
       setShowMateSplash(false);
     }
-  }, [showCheckmateBanner, showCheckBanner]);
+  }, [showCheckmateBanner, showCheckBanner, lastMove?.from, lastMove?.to]);
 
   return (
     <div

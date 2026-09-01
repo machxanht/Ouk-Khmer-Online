@@ -68,3 +68,19 @@ export function LotusMandala({ className = "" }: { className?: string }) {
     </svg>
   );
 }
+
+/** Authentic Angkor Wat 5-tower monument silhouette vector used for low-opacity background atmosphere */
+export function AngkorSilhouette({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 800 280"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+      preserveAspectRatio="xMidYMax meet"
+    >
+      {/* 5 Iconic Angkor Wat Lotus Towers and Gallery Silhouettes */}
+      <path d="M0 280h800v-20H720v-24h-40v-16h-30v-30h-16v-28h-14v-22h-10v-30h-8v-32h-6v-24h-4v-16h-4v16h-6v24h-8v32h-10v30h-14v22h-16v28h-30v30h-40v16h-36v-38h-18v-30h-16v-26h-12v-34h-10v-40h-8v-30h-6v-20h-4v-20h-4v20h-6v20h-8v30h-10v40h-12v34h-16v26h-18v30h-36v38h-24v-48h-20v-36h-18v-30h-14v-38h-12v-44h-10v-36h-8v-28h-6v-22h-6v22h-8v28h-10v36h-12v44h-14v38h-18v30h-20v36h-24v48h-36v-38h-18v-30h-16v-26h-12v-34h-10v-40h-8v-30h-6v-20h-4v-20h-4v20h-6v20h-8v30h-10v40h-12v34h-16v26h-18v30h-36v38h-40v-16h-30v-30h-16v-28h-14v-22h-10v-30h-8v-32h-6v-24h-4v-16h-4v16h-6v24h-8v32h-10v30h-14v22h-16v28h-30v30h-40v16H80v24H0v20z" />
+    </svg>
+  );
+}

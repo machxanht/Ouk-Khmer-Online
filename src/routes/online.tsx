@@ -440,267 +440,235 @@ function OnlineMatchPage() {
           </div>
         )}
 
-        {/* Player Badge (Clean & Compact) */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex items-center gap-3">
-            {currentProfile?.photoURL ? (
-              <img
-                src={currentProfile.photoURL}
-                alt={playerName}
-                className="h-9 w-9 rounded-xl border border-gold/40 object-cover"
-              />
-            ) : (
-              <div className="grid h-9 w-9 place-items-center rounded-xl border border-gold/40 bg-secondary text-gold-dark font-serif font-bold text-xs">
-                {(playerName || "K")[0].toUpperCase()}
-              </div>
-            )}
-            <div>
-              <span className="flex items-center gap-1.5 font-serif text-xs font-bold text-foreground">
-                <span>{playerName}</span>
-                <span className="rounded bg-gold/20 px-1.5 py-0.2 text-[9px] font-bold text-gold-dark">
-                  {currentProfile?.rating || 1200} ELO
+        {/* UNIFIED 3-STEP ONLINE MATCH PIPELINE */}
+        <div className="space-y-4">
+          {/* BƯỚC 1: CHỌN LUẬT CỜ */}
+          <div className="space-y-2.5 rounded-2xl border border-gold/30 bg-card/85 p-3.5 shadow-xs backdrop-blur">
+            <div className="flex items-center justify-between">
+              <SectionTitle icon={Scroll}>{t("step_1_ruleset")}</SectionTitle>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/15 px-2 py-0.5 rounded-md border border-gold/30 font-mono">
+                1 / 3
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 p-1 rounded-xl bg-secondary/30 border border-border/60">
+              {/* 1. Folk (60m) */}
+              <button
+                type="button"
+                onClick={() => setSelectedGameMode("folk")}
+                className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
+                  selectedGameMode === "folk"
+                    ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60 font-medium"
+                }`}
+              >
+                <Shield className="h-4 w-4 shrink-0" />
+                <span className="text-[11px] leading-tight line-clamp-1">{t("folk_ruleset")}</span>
+                <span className="text-[9px] opacity-80 font-mono">60:00</span>
+              </button>
+
+              {/* 2. International (60m) */}
+              <button
+                type="button"
+                onClick={() => setSelectedGameMode("international")}
+                className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
+                  selectedGameMode === "international"
+                    ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60 font-medium"
+                }`}
+              >
+                <Trophy className="h-4 w-4 shrink-0" />
+                <span className="text-[11px] leading-tight line-clamp-1">
+                  {t("international_ruleset")}
                 </span>
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                {currentProfile?.wins || 0}W - {currentProfile?.losses || 0}L
-                {currentProfile?.winStreak && currentProfile.winStreak > 1
-                  ? ` • 🔥 ${currentProfile.winStreak} streak`
-                  : ""}
-              </span>
+                <span className="text-[9px] opacity-80 font-mono">60:00</span>
+              </button>
+
+              {/* 3. Blitz (5m) */}
+              <button
+                type="button"
+                onClick={() => setSelectedGameMode("blitz")}
+                className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
+                  selectedGameMode === "blitz"
+                    ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60 font-medium"
+                }`}
+              >
+                <Zap className="h-4 w-4 shrink-0" />
+                <span className="text-[11px] leading-tight line-clamp-1">
+                  {t("blitz_ruleset_tag")}
+                </span>
+                <span className="text-[9px] opacity-80 font-mono">05:00</span>
+              </button>
+            </div>
+
+            {/* Ruleset Summary Info */}
+            <div className="rounded-xl border border-border/50 bg-background/50 p-2.5 text-[11px] text-muted-foreground">
+              {selectedGameMode === "folk" && (
+                <p className="leading-relaxed">
+                  <strong className="text-foreground">{t("mode_folk_60m")}</strong>:{" "}
+                  {t("mode_folk_60m_desc")}
+                </p>
+              )}
+              {selectedGameMode === "international" && (
+                <p className="leading-relaxed">
+                  <strong className="text-foreground">{t("mode_intl_60m")}</strong>:{" "}
+                  {t("mode_intl_60m_desc")}
+                </p>
+              )}
+              {selectedGameMode === "blitz" && (
+                <p className="leading-relaxed">
+                  <strong className="text-foreground">{t("mode_blitz_5m")}</strong>:{" "}
+                  {t("mode_blitz_5m_desc")}
+                </p>
+              )}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setAuthModalOpen(true)}
-            className="text-[11px] font-semibold text-gold-dark hover:underline flex items-center gap-1"
-          >
-            <UserRound className="h-3 w-3" />
-            <span>Tài khoản</span>
-          </button>
-        </div>
 
-        {/* BƯỚC 1: CHỌN LUẬT CỜ */}
-        <div className="space-y-2.5 pt-1">
-          <div className="flex items-center justify-between">
-            <SectionTitle icon={Scroll}>{t("step_1_ruleset")}</SectionTitle>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/10 px-2 py-0.5 rounded-md border border-gold/20">
-              1 / 3
-            </span>
+          {/* Flow Connector Arrow */}
+          <div className="flex justify-center -my-2.5">
+            <div className="h-5 w-0.5 bg-gradient-to-b from-gold/40 to-gold/10" />
           </div>
 
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border bg-card p-1.5 shadow-xs">
-            {/* 1. Folk (60m) */}
-            <button
-              type="button"
-              onClick={() => setSelectedGameMode("folk")}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
-                selectedGameMode === "folk"
-                  ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium"
-              }`}
-            >
-              <Shield className="h-4 w-4 shrink-0" />
-              <span className="text-[11px] leading-tight line-clamp-1">{t("folk_ruleset")}</span>
-              <span className="text-[9px] opacity-80 font-mono">60:00</span>
-            </button>
-
-            {/* 2. International (60m) */}
-            <button
-              type="button"
-              onClick={() => setSelectedGameMode("international")}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
-                selectedGameMode === "international"
-                  ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium"
-              }`}
-            >
-              <Trophy className="h-4 w-4 shrink-0" />
-              <span className="text-[11px] leading-tight line-clamp-1">
-                {t("international_ruleset")}
+          {/* BƯỚC 2: CHỌN CÁCH GHÉP TRẬN */}
+          <div className="space-y-2.5 rounded-2xl border border-gold/30 bg-card/85 p-3.5 shadow-xs backdrop-blur">
+            <div className="flex items-center justify-between">
+              <SectionTitle icon={Swords}>{t("step_2_match_type")}</SectionTitle>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/15 px-2 py-0.5 rounded-md border border-gold/30 font-mono">
+                2 / 3
               </span>
-              <span className="text-[9px] opacity-80 font-mono">60:00</span>
-            </button>
+            </div>
 
-            {/* 3. Blitz (5m) */}
-            <button
-              type="button"
-              onClick={() => setSelectedGameMode("blitz")}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-1.5 text-center transition-all ${
-                selectedGameMode === "blitz"
-                  ? "bg-royal text-primary-foreground shadow-gold font-bold scale-[1.02]"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium"
-              }`}
-            >
-              <Zap className="h-4 w-4 shrink-0" />
-              <span className="text-[11px] leading-tight line-clamp-1">
-                {t("blitz_ruleset_tag")}
-              </span>
-              <span className="text-[9px] opacity-80 font-mono">05:00</span>
-            </button>
-          </div>
-
-          {/* Ruleset Summary Info */}
-          <div className="rounded-2xl border border-border bg-card/60 p-3 text-[11px] text-muted-foreground">
-            {selectedGameMode === "folk" && (
-              <p className="leading-relaxed">
-                <strong className="text-foreground">{t("mode_folk_60m")}</strong>:{" "}
-                {t("mode_folk_60m_desc")}
-              </p>
-            )}
-            {selectedGameMode === "international" && (
-              <p className="leading-relaxed">
-                <strong className="text-foreground">{t("mode_intl_60m")}</strong>:{" "}
-                {t("mode_intl_60m_desc")}
-              </p>
-            )}
-            {selectedGameMode === "blitz" && (
-              <p className="leading-relaxed">
-                <strong className="text-foreground">{t("mode_blitz_5m")}</strong>:{" "}
-                {t("mode_blitz_5m_desc")}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* BƯỚC 2: CHỌN CÁCH GHÉP TRẬN */}
-        <div className="space-y-2.5 pt-2">
-          <div className="flex items-center justify-between">
-            <SectionTitle icon={Swords}>{t("step_2_match_type")}</SectionTitle>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/10 px-2 py-0.5 rounded-md border border-gold/20">
-              2 / 3
-            </span>
-          </div>
-
-          <div className="grid gap-2">
-            {/* Match Type 1: Random */}
-            <button
-              type="button"
-              onClick={() => setMatchType("random")}
-              className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
-                matchType === "random"
-                  ? "border-gold bg-gold/10 shadow-sm"
-                  : "border-border bg-card hover:border-gold/50"
-              }`}
-            >
-              <div
-                className={`grid h-9 w-9 place-items-center rounded-xl border shrink-0 ${
+            <div className="grid gap-2">
+              {/* Match Type 1: Random */}
+              <button
+                type="button"
+                onClick={() => setMatchType("random")}
+                className={`flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
                   matchType === "random"
-                    ? "border-gold bg-royal text-gold-light"
-                    : "border-border bg-secondary text-muted-foreground"
+                    ? "border-gold bg-gold/10 shadow-xs ring-1 ring-gold/40"
+                    : "border-border/70 bg-background/50 hover:border-gold/50"
                 }`}
               >
-                <Swords className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-serif text-xs font-bold text-foreground">
-                    {t("match_type_random")}
-                  </span>
-                  {matchType === "random" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                <div
+                  className={`grid h-8 w-8 place-items-center rounded-lg border shrink-0 ${
+                    matchType === "random"
+                      ? "border-gold bg-royal text-gold-light"
+                      : "border-border bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <Swords className="h-4 w-4" />
                 </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
-                  {t("match_type_random_desc")}
-                </p>
-              </div>
-            </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-serif text-xs font-bold text-foreground">
+                      {t("match_type_random")}
+                    </span>
+                    {matchType === "random" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                    {t("match_type_random_desc")}
+                  </p>
+                </div>
+              </button>
 
-            {/* Match Type 2: Create Private Room */}
-            <button
-              type="button"
-              onClick={() => setMatchType("create")}
-              className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
-                matchType === "create"
-                  ? "border-gold bg-gold/10 shadow-sm"
-                  : "border-border bg-card hover:border-gold/50"
-              }`}
-            >
-              <div
-                className={`grid h-9 w-9 place-items-center rounded-xl border shrink-0 ${
+              {/* Match Type 2: Create Private Room */}
+              <button
+                type="button"
+                onClick={() => setMatchType("create")}
+                className={`flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
                   matchType === "create"
-                    ? "border-gold bg-royal text-gold-light"
-                    : "border-border bg-secondary text-muted-foreground"
+                    ? "border-gold bg-gold/10 shadow-xs ring-1 ring-gold/40"
+                    : "border-border/70 bg-background/50 hover:border-gold/50"
                 }`}
               >
-                <PlusCircle className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-serif text-xs font-bold text-foreground">
-                    {t("match_type_create_room")}
-                  </span>
-                  {matchType === "create" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                <div
+                  className={`grid h-8 w-8 place-items-center rounded-lg border shrink-0 ${
+                    matchType === "create"
+                      ? "border-gold bg-royal text-gold-light"
+                      : "border-border bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <PlusCircle className="h-4 w-4" />
                 </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
-                  {t("match_type_create_room_desc")}
-                </p>
-              </div>
-            </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-serif text-xs font-bold text-foreground">
+                      {t("match_type_create_room")}
+                    </span>
+                    {matchType === "create" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                    {t("match_type_create_room_desc")}
+                  </p>
+                </div>
+              </button>
 
-            {/* Match Type 3: Join Private Room */}
-            <button
-              type="button"
-              onClick={() => setMatchType("join")}
-              className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
-                matchType === "join"
-                  ? "border-gold bg-gold/10 shadow-sm"
-                  : "border-border bg-card hover:border-gold/50"
-              }`}
-            >
-              <div
-                className={`grid h-9 w-9 place-items-center rounded-xl border shrink-0 ${
+              {/* Match Type 3: Join Private Room */}
+              <button
+                type="button"
+                onClick={() => setMatchType("join")}
+                className={`flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
                   matchType === "join"
-                    ? "border-gold bg-royal text-gold-light"
-                    : "border-border bg-secondary text-muted-foreground"
+                    ? "border-gold bg-gold/10 shadow-xs ring-1 ring-gold/40"
+                    : "border-border/70 bg-background/50 hover:border-gold/50"
                 }`}
               >
-                <Lock className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-serif text-xs font-bold text-foreground">
-                    {t("match_type_join_room")}
-                  </span>
-                  {matchType === "join" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                <div
+                  className={`grid h-8 w-8 place-items-center rounded-lg border shrink-0 ${
+                    matchType === "join"
+                      ? "border-gold bg-royal text-gold-light"
+                      : "border-border bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <Lock className="h-4 w-4" />
                 </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
-                  {t("match_type_join_room_desc")}
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* BƯỚC 3: XÁC NHẬN & BẮT ĐẦU */}
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <SectionTitle icon={Sparkles}>{t("step_3_confirm_start")}</SectionTitle>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/10 px-2 py-0.5 rounded-md border border-gold/20">
-              3 / 3
-            </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-serif text-xs font-bold text-foreground">
+                      {t("match_type_join_room")}
+                    </span>
+                    {matchType === "join" && <span className="h-2 w-2 rounded-full bg-gold" />}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                    {t("match_type_join_room_desc")}
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
 
-          {/* Summary Card */}
-          <div className="kbach-frame rounded-2xl border border-gold/40 bg-card p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs pb-2.5 border-b border-border/50">
-              <span className="font-semibold text-muted-foreground">{t("match_summary")}</span>
-              <span className="font-serif font-bold text-gold-dark">
-                {selectedGameMode === "folk"
-                  ? t("folk_ruleset")
-                  : selectedGameMode === "international"
-                    ? t("international_ruleset")
-                    : t("blitz_ruleset_tag")}{" "}
-                ({selectedGameMode === "blitz" ? "05:00" : "60:00"})
+          {/* Flow Connector Arrow */}
+          <div className="flex justify-center -my-2.5">
+            <div className="h-5 w-0.5 bg-gradient-to-b from-gold/40 to-gold/10" />
+          </div>
+
+          {/* BƯỚC 3: XÁC NHẬN & BẮT ĐẦU */}
+          <div className="space-y-3 rounded-2xl border border-gold/40 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <SectionTitle icon={Sparkles}>{t("step_3_confirm_start")}</SectionTitle>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gold-dark bg-gold/15 px-2 py-0.5 rounded-md border border-gold/30 font-mono">
+                3 / 3
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2.5 text-[11px]">
-              <div>
-                <span className="text-muted-foreground block">{t("current_player_badge")}</span>
-                <span className="font-semibold text-foreground truncate block">{playerName}</span>
+            {/* Summary Box */}
+            <div className="rounded-xl border border-border/70 bg-background/60 p-3">
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-border/50">
+                <span className="font-semibold text-muted-foreground">{t("match_summary")}</span>
+                <span className="font-serif font-bold text-gold-dark">
+                  {selectedGameMode === "folk"
+                    ? t("folk_ruleset")
+                    : selectedGameMode === "international"
+                      ? t("international_ruleset")
+                      : t("blitz_ruleset_tag")}{" "}
+                  ({selectedGameMode === "blitz" ? "05:00" : "60:00"})
+                </span>
               </div>
-              <div>
-                <span className="text-muted-foreground block">Hình thức ghép</span>
-                <span className="font-semibold text-foreground truncate block">
+
+              <div className="flex items-center justify-between pt-2 text-[11px]">
+                <span className="text-muted-foreground">Hình thức thi đấu</span>
+                <span className="font-semibold text-foreground">
                   {matchType === "random"
                     ? t("match_type_random")
                     : matchType === "create"
@@ -708,27 +676,27 @@ function OnlineMatchPage() {
                       : t("match_type_join_room")}
                 </span>
               </div>
+
+              {/* Input PIN if Join Mode */}
+              {matchType === "join" && (
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">
+                    {t("enter_pin_prompt")}
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="------"
+                    className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-center font-mono text-base tracking-[0.25em] font-bold text-foreground focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/40"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Input PIN if Join Mode */}
-            {matchType === "join" && (
-              <div className="mt-3 pt-3 border-t border-border/50">
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">
-                  {t("enter_pin_prompt")}
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
-                  placeholder="------"
-                  className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-center font-mono text-base tracking-[0.25em] font-bold text-foreground focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/40"
-                />
-              </div>
-            )}
-
             {/* Final Action Button */}
-            <div className="mt-4">
+            <div>
               <button
                 type="button"
                 onClick={handleStartMatch}
