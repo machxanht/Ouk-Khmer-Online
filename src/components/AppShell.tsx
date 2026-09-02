@@ -9,7 +9,6 @@ import { AccountHeader } from "./AccountHeader";
 import { AuthModal } from "./AuthModal";
 import { PlayerNameModal } from "./PlayerNameModal";
 import { authManager } from "../lib/auth-manager";
-import mascot from "../assets/mascot.png";
 
 const NAV = [
   { to: "/home", icon: Home, key: "home" },
@@ -57,7 +56,7 @@ export function AppShell({
             <div className="relative shrink-0">
               <span className="animate-glow absolute inset-0 rounded-full bg-gold/40 blur-md" />
               <img
-                src={mascot}
+                src="/mascot.png"
                 alt="Ouk Chatrang mascot"
                 width={40}
                 height={40}

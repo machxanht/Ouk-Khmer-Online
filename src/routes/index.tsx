@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { useState } from "react";
 
-import mascot from "../assets/mascot.png";
 import angkor from "../assets/angkor-hero.jpg";
 import { KbachCorner, KbachDivider, LotusMandala } from "../components/KhmerOrnament";
 import { LANGUAGES, useI18n, type Lang } from "../lib/i18n";
@@ -56,7 +55,7 @@ function Welcome() {
         <div className="relative mx-auto mt-2 flex justify-center">
           <span className="animate-glow absolute bottom-6 h-24 w-40 rounded-full bg-gold/40 blur-2xl" />
           <img
-            src={mascot}
+            src="/mascot.png"
             alt="Ouk Chatrang mascot"
             width={512}
             height={512}

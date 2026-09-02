@@ -1432,11 +1432,13 @@ const resolveTestFile = (p: string) => {
   const appShell = fs.readFileSync(resolveTestFile("src/components/AppShell.tsx"), "utf8");
   const welcome = fs.readFileSync(resolveTestFile("src/routes/index.tsx"), "utf8");
   const shellHasLogo =
-    (appShell.includes("logo-main.png") || appShell.includes("mascot.png")) &&
-    (appShell.includes("src={mascot}") || appShell.includes("src={logoMain}"));
+    appShell.includes('src="/mascot.png"') ||
+    ((appShell.includes("logo-main.png") || appShell.includes("mascot.png")) &&
+      (appShell.includes("src={mascot}") || appShell.includes("src={logoMain}")));
   const welcomeHasLogo =
-    (welcome.includes("logo-main.png") || welcome.includes("mascot.png")) &&
-    (welcome.includes("src={mascot}") || welcome.includes("src={logoMain}"));
+    welcome.includes('src="/mascot.png"') ||
+    ((welcome.includes("logo-main.png") || welcome.includes("mascot.png")) &&
+      (welcome.includes("src={mascot}") || welcome.includes("src={logoMain}")));
   assert(
     "90. Brand Mascot: AppShell header and Welcome screen use mascot asset",
     shellHasLogo && welcomeHasLogo,

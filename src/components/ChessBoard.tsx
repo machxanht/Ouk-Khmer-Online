@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   squareName,
   PIECE_NAMES,
@@ -37,22 +37,29 @@ export function ChessBoard({
   const theme = BOARD_THEMES[boardTheme];
   const order = Array.from({ length: 64 }, (_, i) => (flipped ? 63 - i : i));
 
-  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state
+  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state.
+  // Keep the splash alive for its full animation even when AI immediately answers the check.
   const [showMateSplash, setShowMateSplash] = useState(false);
   const [splashKey, setSplashKey] = useState(0);
+  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (showCheckmateBanner || showCheckBanner) {
-      setSplashKey((k) => k + 1);
-      setShowMateSplash(true);
-      const timer = setTimeout(() => {
-        setShowMateSplash(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    } else {
+    if (!showCheckmateBanner && !showCheckBanner) return;
+
+    if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
+    setSplashKey((k) => k + 1);
+    setShowMateSplash(true);
+    splashTimerRef.current = setTimeout(() => {
       setShowMateSplash(false);
-    }
+      splashTimerRef.current = null;
+    }, 3000);
   }, [showCheckmateBanner, showCheckBanner, lastMove?.from, lastMove?.to]);
+
+  useEffect(() => {
+    return () => {
+      if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
+    };
+  }, []);
 
   return (
     <div
