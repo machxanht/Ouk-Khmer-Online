@@ -4,10 +4,11 @@ import { Bot, ChevronRight, Crown, Globe2, Swords, Users } from "lucide-react";
 import { AppShell, SectionTitle } from "../components/AppShell";
 import { KbachDivider } from "../components/KhmerOrnament";
 import { OukPiece } from "../components/OukPiece";
-import mascot from "../assets/mascot.png";
 import { useI18n } from "../lib/i18n";
 import { getDailyQuote } from "../lib/daily-quotes";
 import { PIECE_NAMES, type PieceType } from "../lib/khmer-chess";
+
+const MASCOT_URL = "/media/mascot.png";
 
 export const Route = createFileRoute("/home")({
   head: () => ({
@@ -147,11 +148,12 @@ function HomePage() {
         <div className="relative shrink-0">
           <span className="animate-glow absolute inset-0 rounded-full bg-gold/30 blur-md" />
           <img
-            src={mascot}
+            src={MASCOT_URL}
             alt="Ouk Chatrang mascot"
             width={64}
             height={64}
-            loading="lazy"
+            loading="eager"
+            decoding="async"
             className="animate-float relative h-16 w-16 object-contain drop-shadow-md"
           />
         </div>
