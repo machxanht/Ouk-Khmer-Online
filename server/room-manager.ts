@@ -15,12 +15,12 @@ export class RoomManager {
    */
   private generateUniquePin(): string {
     for (let attempts = 0; attempts < 100; attempts++) {
-      const pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const pin = crypto.randomInt(100000, 1000000).toString();
       if (!this.pinToRoomId.has(pin)) {
         return pin;
       }
     }
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    throw new Error("Unable to generate a unique private-room PIN");
   }
 
   /**
@@ -1153,8 +1153,7 @@ export class RoomManager {
   public handleReconnect(
     newSocketId: string,
     roomId: string,
-    sessionToken?: string,
-    color?: string,
+    sessionToken: string,
   ):
     | {
         success: true;
@@ -1187,37 +1186,22 @@ export class RoomManager {
     }
 
     let targetPlayer: PlayerInfo | null = null;
-    let opponent: PlayerInfo | null = null;
+let opponent: PlayerInfo | null = null;
 
-    if (sessionToken) {
-      if (room.players.w?.sessionToken === sessionToken) {
-        targetPlayer = room.players.w;
-        opponent = room.players.b;
-      } else if (room.players.b?.sessionToken === sessionToken) {
-        targetPlayer = room.players.b;
-        opponent = room.players.w;
-      } else {
-        // If an invalid sessionToken was explicitly supplied, reject reconnection
-        serverLogger.warn("RECONNECT", {
-          roomId,
-          socketId: newSocketId,
-          details: { error: "INVALID_SESSION_TOKEN" },
-        });
-        return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
-      }
-    } else if (color === "w" || color === "b") {
-      targetPlayer = room.players[color];
-      opponent = color === "w" ? room.players.b : room.players.w;
-    }
-
-    if (!targetPlayer) {
-      serverLogger.warn("RECONNECT", {
-        roomId,
-        socketId: newSocketId,
-        details: { error: "INVALID_SESSION_INFO" },
-      });
-      return { success: false, error: "Không tìm thấy thông tin phiên người chơi." };
-    }
+if (room.players.w?.sessionToken === sessionToken) {
+  targetPlayer = room.players.w;
+  opponent = room.players.b;
+} else if (room.players.b?.sessionToken === sessionToken) {
+  targetPlayer = room.players.b;
+  opponent = room.players.w;
+} else {
+  serverLogger.warn("RECONNECT", {
+    roomId,
+    socketId: newSocketId,
+    details: { error: "INVALID_SESSION_TOKEN" },
+  });
+  return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
+}
 
     // Clean up any stale socket mapping
     const staleSocketId =
