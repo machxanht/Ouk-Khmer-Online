@@ -9,6 +9,7 @@
     "server:start": "node dist/server.cjs",
     "server:dev": "tsx server/start.ts",
     "check:assets": "npx tsx scripts/check-assets.ts",
+    "check:assets:dist": "npx tsx scripts/check-assets.ts --require-build",
     "test:auth": "npx tsx scripts/test-auth.ts",
     "test": "npx tsx src/lib/khmer-chess.test.ts",
     "build": "vite build && esbuild server/start.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",

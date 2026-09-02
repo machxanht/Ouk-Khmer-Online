@@ -38,8 +38,11 @@ jobs:
           ALLOW_DEV_AUTH_TOKENS: "true"
         run: npm run test:auth
 
-      - name: Asset integrity
+      - name: Source asset integrity
         run: npm run check:assets
 
       - name: Production build
         run: npm run build
+
+      - name: Built asset integrity
+        run: npm run check:assets:dist

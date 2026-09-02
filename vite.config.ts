@@ -30,5 +30,9 @@ export default defineConfig({
   build: {
     outDir: ".output/public",
     emptyOutDir: true,
+    // Keep generated media on a dedicated path. This intentionally busts any
+    // stale /assets/* cache entries from older deployments while Vite's
+    // content hashes continue to version individual files safely.
+    assetsDir: "app-assets",
   },
 });
