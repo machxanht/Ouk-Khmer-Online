@@ -1,0 +1,73 @@
+name: Fix assets and AI check animation
+
+on:
+  push:
+    branches:
+      - fix-assets-ai-check-animation
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: ${{ !contains(github.event.head_commit.message, '[asset-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-assets-ai-check-animation
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply targeted fixes
+        shell: bash
+        run: |
+          cp src/assets/mascot.png public/mascot.png
+          python - <<'PY'
+          from pathlib import Path
+
+          for file in [Path('src/components/AppShell.tsx'), Path('src/routes/home.tsx')]:
+              text = file.read_text()
+              text = text.replace('import mascot from "../assets/mascot.png";\n', '')
+              text = text.replace('src={mascot}', 'src="/mascot.png"')
+              file.write_text(text)
+
+          board = Path('src/components/ChessBoard.tsx')
+          text = board.read_text()
+          text = text.replace('import { useState, useEffect } from "react";', 'import { useState, useEffect, useRef } from "react";')
+          old = '''  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state\n  const [showMateSplash, setShowMateSplash] = useState(false);\n  const [splashKey, setSplashKey] = useState(0);\n\n  useEffect(() => {\n    if (showCheckmateBanner || showCheckBanner) {\n      setSplashKey((k) => k + 1);\n      setShowMateSplash(true);\n      const timer = setTimeout(() => {\n        setShowMateSplash(false);\n      }, 3000);\n      return () => clearTimeout(timer);\n    } else {\n      setShowMateSplash(false);\n    }\n  }, [showCheckmateBanner, showCheckBanner, lastMove?.from, lastMove?.to]);\n'''
+          new = '''  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state.\n  // Keep the splash alive for its full animation even when AI immediately answers the check.\n  const [showMateSplash, setShowMateSplash] = useState(false);\n  const [splashKey, setSplashKey] = useState(0);\n  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);\n\n  useEffect(() => {\n    if (!showCheckmateBanner && !showCheckBanner) return;\n\n    if (splashTimerRef.current) clearTimeout(splashTimerRef.current);\n    setSplashKey((k) => k + 1);\n    setShowMateSplash(true);\n    splashTimerRef.current = setTimeout(() => {\n      setShowMateSplash(false);\n      splashTimerRef.current = null;\n    }, 3000);\n  }, [showCheckmateBanner, showCheckBanner, lastMove?.from, lastMove?.to]);\n\n  useEffect(() => {\n    return () => {\n      if (splashTimerRef.current) clearTimeout(splashTimerRef.current);\n    };\n  }, []);\n'''
+          if old not in text:
+              raise SystemExit('ChessBoard splash block not found; refusing broad rewrite')
+          board.write_text(text.replace(old, new))
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format changed TypeScript
+        run: npx prettier --write src/components/AppShell.tsx src/routes/home.tsx src/components/ChessBoard.tsx
+
+      - name: Core engine tests
+        run: npm test
+
+      - name: Auth security regression tests
+        run: npm run test:auth
+
+      - name: Asset integrity
+        run: npm run check:assets
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit verified fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/mascot.png src/components/AppShell.tsx src/routes/home.tsx src/components/ChessBoard.tsx
+          git commit -m "fix: restore brand asset and sync check splash [asset-fix]"
+          git push origin HEAD:fix-assets-ai-check-animation
