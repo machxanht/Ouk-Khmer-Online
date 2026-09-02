@@ -28,6 +28,7 @@ interface EloResult {
 
 const DEFAULT_RATING = 1200;
 const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
+const FINALIZED_MATCH_CACHE_LIMIT = 5000;
 
 function base64url(value: string | Buffer): string {
   return Buffer.from(value).toString("base64url");
@@ -65,6 +66,7 @@ class RankedManager {
   private accessToken: string | null = null;
   private accessTokenExpiresAt = 0;
   private locks = new Map<string, Promise<void>>();
+  private finalizedMatchKeys = new Set<string>();
 
   private getServiceAccount(): ServiceAccount | null {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -162,9 +164,21 @@ class RankedManager {
       wins: current.wins + (outcome === "win" ? 1 : 0),
       losses: current.losses + (outcome === "loss" ? 1 : 0),
       draws: current.draws + (outcome === "draw" ? 1 : 0),
-      winStreak: outcome === "win" ? current.winStreak + 1 : outcome === "loss" ? 0 : current.winStreak,
+      winStreak:
+        outcome === "win" ? current.winStreak + 1 : outcome === "loss" ? 0 : current.winStreak,
       gamesPlayed: current.gamesPlayed + 1,
     };
+  }
+
+  private getMatchKey(room: Room): string {
+    return `${room.id}:${room.gameState?.startedAt || room.createdAt}`;
+  }
+
+  private rememberFinalizedMatch(matchKey: string): void {
+    this.finalizedMatchKeys.add(matchKey);
+    if (this.finalizedMatchKeys.size <= FINALIZED_MATCH_CACHE_LIMIT) return;
+    const oldest = this.finalizedMatchKeys.values().next().value as string | undefined;
+    if (oldest) this.finalizedMatchKeys.delete(oldest);
   }
 
   private async persistResult(
@@ -206,7 +220,8 @@ class RankedManager {
     const whiteNext = this.buildUpdatedStats(whiteDoc.stats, whiteOutcome, whiteElo);
     const blackNext = this.buildUpdatedStats(blackDoc.stats, blackOutcome, blackElo);
     const now = Date.now();
-    const matchId = `${room.id}_${now}`;
+    const matchKey = this.getMatchKey(room);
+    const matchId = base64url(matchKey).replace(/=+$/g, "");
     const base = `projects/${account.project_id}/databases/(default)/documents`;
 
     const statsFields = (stats: PlayerStats) => ({
@@ -238,6 +253,7 @@ class RankedManager {
           name: `${base}/match_history/${matchId}`,
           fields: {
             roomId: firestoreValue(room.id),
+            matchKey: firestoreValue(matchKey),
             whiteUid: firestoreValue(white.uid),
             blackUid: firestoreValue(black.uid),
             whiteName: firestoreValue(white.name),
@@ -256,6 +272,7 @@ class RankedManager {
             blackRatingDelta: firestoreValue(blackElo.delta),
           },
         },
+        currentDocument: { exists: false },
       },
     ];
 
@@ -270,6 +287,14 @@ class RankedManager {
     });
 
     if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      if (response.status === 409 || body.includes("ALREADY_EXISTS")) {
+        serverLogger.warn("GAME_OVER", {
+          roomId: room.id,
+          details: { rankedDuplicateSkipped: true, matchKey },
+        });
+        return;
+      }
       throw new Error(`Firestore authoritative rank commit failed (${response.status})`);
     }
 
@@ -277,6 +302,7 @@ class RankedManager {
       roomId: room.id,
       details: {
         rankedPersisted: true,
+        matchKey,
         whiteUid: white.uid,
         blackUid: black.uid,
         whiteRating: whiteNext.rating,
@@ -285,11 +311,13 @@ class RankedManager {
     });
   }
 
-  public async finalize(
-    room: Room,
-    winner: Color | "draw",
-    reason: string,
-  ): Promise<void> {
+  public async finalize(room: Room, winner: Color | "draw", reason: string): Promise<void> {
+    if (room.isBotRoom) return;
+
+    const matchKey = this.getMatchKey(room);
+    if (this.finalizedMatchKeys.has(matchKey)) return;
+    this.rememberFinalizedMatch(matchKey);
+
     const account = this.getServiceAccount();
     if (!account) {
       serverLogger.warn("ERROR", {
@@ -302,13 +330,15 @@ class RankedManager {
     }
 
     const uids = [room.players.w?.uid, room.players.b?.uid].filter(Boolean).sort().join(":");
-    if (!uids || room.isBotRoom) return;
+    if (!uids) return;
 
     const previous = this.locks.get(uids) || Promise.resolve();
     const current = previous
       .catch(() => undefined)
       .then(() => this.persistResult(account, room, winner, reason))
       .catch((err) => {
+        // Allow a later retry if persistence failed for a transient reason.
+        this.finalizedMatchKeys.delete(matchKey);
         serverLogger.error("ERROR", {
           roomId: room.id,
           details: { message: "Authoritative rank persistence failed", error: String(err) },
