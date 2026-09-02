@@ -107,7 +107,6 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       if (saved?.roomId && saved.sessionToken) {
         onlineClient.reconnectGame(saved.roomId, saved.sessionToken, saved.color);
       } else if (saved?.roomId) {
-        // Legacy/incomplete sessions must never reconnect by color only.
         clearSession();
       }
     });
@@ -139,6 +138,10 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
     });
 
     const unsubRoomError = onlineClient.on("room:error", (data) => {
+      if (data.code === "AUTH_REQUIRED") {
+        setMatchStatus("idle");
+        setRoom(null);
+      }
       setError(data.message);
     });
 
@@ -264,6 +267,11 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
 
     const unsubGameError = onlineClient.on("game:error", (data) => {
       if (data.code === "RECONNECT_FAILED") clearSession();
+      if (data.code === "AUTH_REQUIRED") {
+        setMatchStatus("idle");
+        setQueueSize(0);
+        setRoom(null);
+      }
       setError(data.message);
     });
 
@@ -362,7 +370,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setPlayer((p) => ({ ...p, name: playerName }));
       setError(null);
       setMatchStatus("searching");
-      const token = await authManager.getIdToken().catch(() => undefined);
+      const token = (await authManager.getIdToken().catch(() => null)) || undefined;
       onlineClient.joinMatchmaking(playerName, rulesetId, mode, timeControl, token);
     },
     [player.name],
@@ -385,7 +393,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setPlayer((p) => ({ ...p, name: playerName }));
       setError(null);
       setMatchStatus("waiting");
-      const token = await authManager.getIdToken().catch(() => undefined);
+      const token = (await authManager.getIdToken().catch(() => null)) || undefined;
       onlineClient.createPrivateRoom(playerName, rulesetId, mode, timeControl, token);
     },
     [player.name],
@@ -396,7 +404,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       const playerName = name || player.name;
       setPlayer((p) => ({ ...p, name: playerName }));
       setError(null);
-      const token = await authManager.getIdToken().catch(() => undefined);
+      const token = (await authManager.getIdToken().catch(() => null)) || undefined;
       onlineClient.joinPrivateRoom(pin, playerName, token);
     },
     [player.name],
