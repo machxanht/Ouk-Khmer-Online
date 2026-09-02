@@ -29,6 +29,8 @@ interface EloResult {
 const DEFAULT_RATING = 1200;
 const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const FINALIZED_MATCH_CACHE_LIMIT = 5000;
+const DEFAULT_FIRESTORE_DATABASE_ID =
+  "ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc";
 
 function base64url(value: string | Buffer): string {
   return Buffer.from(value).toString("base64url");
@@ -78,6 +80,10 @@ class RankedManager {
     } catch {
       return null;
     }
+  }
+
+  private getFirestoreDatabaseId(): string {
+    return process.env.FIRESTORE_DATABASE_ID?.trim() || DEFAULT_FIRESTORE_DATABASE_ID;
   }
 
   private async getAccessToken(account: ServiceAccount): Promise<string> {
@@ -142,10 +148,11 @@ class RankedManager {
 
   private async readUser(
     projectId: string,
+    databaseId: string,
     token: string,
     uid: string,
   ): Promise<{ stats: PlayerStats; fields: Record<string, any> }> {
-    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(databaseId)}/documents/users/${encodeURIComponent(uid)}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (response.status === 404) return { stats: this.parseStats(undefined), fields: {} };
     if (!response.ok) throw new Error(`Firestore user read failed (${response.status})`);
@@ -193,10 +200,11 @@ class RankedManager {
     const black = room.players.b;
     if (!white?.uid || !black?.uid) return;
 
+    const databaseId = this.getFirestoreDatabaseId();
     const token = await this.getAccessToken(account);
     const [whiteDoc, blackDoc] = await Promise.all([
-      this.readUser(account.project_id, token, white.uid),
-      this.readUser(account.project_id, token, black.uid),
+      this.readUser(account.project_id, databaseId, token, white.uid),
+      this.readUser(account.project_id, databaseId, token, black.uid),
     ]);
 
     const whiteScore: 0 | 0.5 | 1 = winner === "draw" ? 0.5 : winner === "w" ? 1 : 0;
@@ -222,7 +230,7 @@ class RankedManager {
     const now = Date.now();
     const matchKey = this.getMatchKey(room);
     const matchId = base64url(matchKey).replace(/=+$/g, "");
-    const base = `projects/${account.project_id}/databases/(default)/documents`;
+    const base = `projects/${account.project_id}/databases/${databaseId}/documents`;
 
     const statsFields = (stats: PlayerStats) => ({
       rating: firestoreValue(stats.rating),
@@ -276,7 +284,7 @@ class RankedManager {
       },
     ];
 
-    const commitUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/databases/(default)/documents:commit`;
+    const commitUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/databases/${encodeURIComponent(databaseId)}/documents:commit`;
     const response = await fetch(commitUrl, {
       method: "POST",
       headers: {
@@ -302,6 +310,7 @@ class RankedManager {
       roomId: room.id,
       details: {
         rankedPersisted: true,
+        firestoreDatabaseId: databaseId,
         matchKey,
         whiteUid: white.uid,
         blackUid: black.uid,
