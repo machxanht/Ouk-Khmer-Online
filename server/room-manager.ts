@@ -1186,22 +1186,22 @@ export class RoomManager {
     }
 
     let targetPlayer: PlayerInfo | null = null;
-let opponent: PlayerInfo | null = null;
+    let opponent: PlayerInfo | null = null;
 
-if (room.players.w?.sessionToken === sessionToken) {
-  targetPlayer = room.players.w;
-  opponent = room.players.b;
-} else if (room.players.b?.sessionToken === sessionToken) {
-  targetPlayer = room.players.b;
-  opponent = room.players.w;
-} else {
-  serverLogger.warn("RECONNECT", {
-    roomId,
-    socketId: newSocketId,
-    details: { error: "INVALID_SESSION_TOKEN" },
-  });
-  return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
-}
+    if (room.players.w?.sessionToken === sessionToken) {
+      targetPlayer = room.players.w;
+      opponent = room.players.b;
+    } else if (room.players.b?.sessionToken === sessionToken) {
+      targetPlayer = room.players.b;
+      opponent = room.players.w;
+    } else {
+      serverLogger.warn("RECONNECT", {
+        roomId,
+        socketId: newSocketId,
+        details: { error: "INVALID_SESSION_TOKEN" },
+      });
+      return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
+    }
 
     // Clean up any stale socket mapping
     const staleSocketId =
