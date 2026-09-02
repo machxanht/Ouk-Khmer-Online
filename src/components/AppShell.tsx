@@ -61,7 +61,9 @@ export function AppShell({
                 alt="Ouk Chatrang mascot"
                 width={40}
                 height={40}
-                loading="lazy"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
                 className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full border border-gold/60 bg-transparent object-contain p-0.5"
               />
             </div>
