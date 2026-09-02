@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   squareName,
   PIECE_NAMES,
@@ -18,6 +18,7 @@ export function ChessBoard({
   touchLocked,
   showCheckBanner,
   showCheckmateBanner,
+  splashTrigger,
   className,
   onSquare,
 }: {
@@ -30,6 +31,7 @@ export function ChessBoard({
   touchLocked?: boolean;
   showCheckBanner?: boolean;
   showCheckmateBanner?: boolean;
+  splashTrigger?: number;
   className?: string;
   onSquare: (i: number) => void;
 }) {
@@ -37,22 +39,41 @@ export function ChessBoard({
   const theme = BOARD_THEMES[boardTheme];
   const order = Array.from({ length: 64 }, (_, i) => (flipped ? 63 - i : i));
 
-  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state
+  // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state.
+  // Trigger on the check event itself and let the splash finish even if AI answers immediately.
   const [showMateSplash, setShowMateSplash] = useState(false);
   const [splashKey, setSplashKey] = useState(0);
+  const previousCheckRef = useRef(false);
+  const previousCheckmateRef = useRef(false);
+  const previousSplashTriggerRef = useRef(splashTrigger ?? 0);
+  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (showCheckmateBanner || showCheckBanner) {
-      setSplashKey((k) => k + 1);
-      setShowMateSplash(true);
-      const timer = setTimeout(() => {
-        setShowMateSplash(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    } else {
+    const nextTrigger = splashTrigger ?? 0;
+    const checkStarted = Boolean(showCheckBanner) && !previousCheckRef.current;
+    const checkmateStarted = Boolean(showCheckmateBanner) && !previousCheckmateRef.current;
+    const explicitTrigger = nextTrigger !== previousSplashTriggerRef.current;
+
+    previousCheckRef.current = Boolean(showCheckBanner);
+    previousCheckmateRef.current = Boolean(showCheckmateBanner);
+    previousSplashTriggerRef.current = nextTrigger;
+
+    if (!checkStarted && !checkmateStarted && !explicitTrigger) return;
+
+    if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
+    setSplashKey((k) => k + 1);
+    setShowMateSplash(true);
+    splashTimerRef.current = setTimeout(() => {
       setShowMateSplash(false);
-    }
-  }, [showCheckmateBanner, showCheckBanner, lastMove?.from, lastMove?.to]);
+      splashTimerRef.current = null;
+    }, 3000);
+  }, [showCheckmateBanner, showCheckBanner, splashTrigger]);
+
+  useEffect(() => {
+    return () => {
+      if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
+    };
+  }, []);
 
   return (
     <div

@@ -161,6 +161,7 @@ function PlayPage() {
   const [captured, setCaptured] = useState<{ w: string[]; b: string[] }>({ w: [], b: [] });
   const [thinking, setThinking] = useState(false);
   const [hint, setHint] = useState<number[]>([]);
+  const [checkSplashTrigger, setCheckSplashTrigger] = useState(0);
 
   // Clocks for match
   const [clocks, setClocks] = useState<{ w: number; b: number }>({ w: 3600, b: 3600 });
@@ -365,6 +366,7 @@ function PlayPage() {
       if (nextStatus === "checkmate" || nextStatus === "king_captured") {
         // Handled by gameResult effect
       } else if (nextStatus === "check") {
+        setCheckSplashTrigger((value) => value + 1);
         audioManager.playSfx("check");
       } else if (isPromotion) {
         audioManager.playSfx("promotion");
@@ -440,6 +442,7 @@ function PlayPage() {
       setLastMove(null);
       setCaptured({ w: [], b: [] });
       setHint([]);
+      setCheckSplashTrigger(0);
     },
     [selectedRulesetId, selectedTimeControl],
   );
@@ -1050,6 +1053,7 @@ function PlayPage() {
             flipped={flipped}
             touchLocked={touchLocked}
             showCheckBanner={matchStatus === "check" || rawState === "check"}
+            splashTrigger={checkSplashTrigger}
             showCheckmateBanner={
               matchStatus === "checkmate" ||
               matchStatus === "king_captured" ||
