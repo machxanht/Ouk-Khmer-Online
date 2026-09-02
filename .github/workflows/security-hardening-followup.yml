@@ -25,108 +25,97 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           path = Path("server/room-manager.ts")
           text = path.read_text()
+          original = text
 
-          old_pin = '''  private generateUniquePin(): string {
-            for (let attempts = 0; attempts < 100; attempts++) {
-              const pin = Math.floor(100000 + Math.random() * 900000).toString();
-              if (!this.pinToRoomId.has(pin)) {
-                return pin;
-              }
-            }
-            return Math.floor(100000 + Math.random() * 900000).toString();
-          }'''.replace("            ", "")
-          new_pin = '''  private generateUniquePin(): string {
-            for (let attempts = 0; attempts < 100; attempts++) {
-              const pin = crypto.randomInt(100000, 1000000).toString();
-              if (!this.pinToRoomId.has(pin)) {
-                return pin;
-              }
-            }
-            throw new Error("Unable to generate a unique private-room PIN");
-          }'''.replace("            ", "")
+          text, pin_count = re.subn(
+              r'const pin = Math\.floor\(100000 \+ Math\.random\(\) \* 900000\)\.toString\(\);',
+              'const pin = crypto.randomInt(100000, 1000000).toString();',
+              text,
+          )
+          text = text.replace(
+              'return Math.floor(100000 + Math.random() * 900000).toString();',
+              'throw new Error("Unable to generate a unique private-room PIN");',
+              1,
+          )
 
-          old_sig = '''  public handleReconnect(
-            newSocketId: string,
-            roomId: string,
-            sessionToken?: string,
-            color?: string,
-          ):'''.replace("            ", "")
-          new_sig = '''  public handleReconnect(
-            newSocketId: string,
-            roomId: string,
-            sessionToken: string,
-          ):'''.replace("            ", "")
+          text, sig_count = re.subn(
+              r'(public handleReconnect\(\n\s+newSocketId: string,\n\s+roomId: string,\n\s+)sessionToken\?: string,\n\s+color\?: string,',
+              r'\1sessionToken: string,',
+              text,
+              count=1,
+          )
 
-          old_lookup = '''    let targetPlayer: PlayerInfo | null = null;
-            let opponent: PlayerInfo | null = null;
+          lookup_pattern = re.compile(
+              r'''    let targetPlayer: PlayerInfo \| null = null;\n'''
+              r'''    let opponent: PlayerInfo \| null = null;\n\n'''
+              r'''    if \(sessionToken\) \{\n'''
+              r'''      if \(room\.players\.w\?\.sessionToken === sessionToken\) \{\n'''
+              r'''        targetPlayer = room\.players\.w;\n'''
+              r'''        opponent = room\.players\.b;\n'''
+              r'''      \} else if \(room\.players\.b\?\.sessionToken === sessionToken\) \{\n'''
+              r'''        targetPlayer = room\.players\.b;\n'''
+              r'''        opponent = room\.players\.w;\n'''
+              r'''      \} else \{\n'''
+              r'''        // If an invalid sessionToken was explicitly supplied, reject reconnection\n'''
+              r'''        serverLogger\.warn\("RECONNECT", \{\n'''
+              r'''          roomId,\n'''
+              r'''          socketId: newSocketId,\n'''
+              r'''          details: \{ error: "INVALID_SESSION_TOKEN" \},\n'''
+              r'''        \}\);\n'''
+              r'''        return \{ success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn\." \};\n'''
+              r'''      \}\n'''
+              r'''    \} else if \(color === "w" \|\| color === "b"\) \{\n'''
+              r'''      targetPlayer = room\.players\[color\];\n'''
+              r'''      opponent = color === "w" \? room\.players\.b : room\.players\.w;\n'''
+              r'''    \}\n\n'''
+              r'''    if \(!targetPlayer\) \{\n'''
+              r'''      serverLogger\.warn\("RECONNECT", \{\n'''
+              r'''        roomId,\n'''
+              r'''        socketId: newSocketId,\n'''
+              r'''        details: \{ error: "INVALID_SESSION_INFO" \},\n'''
+              r'''      \}\);\n'''
+              r'''      return \{ success: false, error: "Không tìm thấy thông tin phiên người chơi\." \};\n'''
+              r'''    \}'''
+          )
+          replacement = '''    let targetPlayer: PlayerInfo | null = null;
+          let opponent: PlayerInfo | null = null;
 
-            if (sessionToken) {
-              if (room.players.w?.sessionToken === sessionToken) {
-                targetPlayer = room.players.w;
-                opponent = room.players.b;
-              } else if (room.players.b?.sessionToken === sessionToken) {
-                targetPlayer = room.players.b;
-                opponent = room.players.w;
-              } else {
-                // If an invalid sessionToken was explicitly supplied, reject reconnection
-                serverLogger.warn("RECONNECT", {
-                  roomId,
-                  socketId: newSocketId,
-                  details: { error: "INVALID_SESSION_TOKEN" },
-                });
-                return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
-              }
-            } else if (color === "w" || color === "b") {
-              targetPlayer = room.players[color];
-              opponent = color === "w" ? room.players.b : room.players.w;
-            }
+          if (room.players.w?.sessionToken === sessionToken) {
+            targetPlayer = room.players.w;
+            opponent = room.players.b;
+          } else if (room.players.b?.sessionToken === sessionToken) {
+            targetPlayer = room.players.b;
+            opponent = room.players.w;
+          } else {
+            serverLogger.warn("RECONNECT", {
+              roomId,
+              socketId: newSocketId,
+              details: { error: "INVALID_SESSION_TOKEN" },
+            });
+            return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
+          }'''
+          replacement = "\n".join(line[10:] if line.startswith("          ") else line for line in replacement.splitlines())
+          text, lookup_count = lookup_pattern.subn(replacement, text, count=1)
 
-            if (!targetPlayer) {
-              serverLogger.warn("RECONNECT", {
-                roomId,
-                socketId: newSocketId,
-                details: { error: "INVALID_SESSION_INFO" },
-              });
-              return { success: false, error: "Không tìm thấy thông tin phiên người chơi." };
-            }'''.replace("            ", "")
-          new_lookup = '''    let targetPlayer: PlayerInfo | null = null;
-            let opponent: PlayerInfo | null = null;
+          already_hardened = (
+              'crypto.randomInt(100000, 1000000)' in original
+              and 'sessionToken: string,' in original
+              and 'color?: string' not in original
+          )
+          if not already_hardened:
+              if pin_count != 1:
+                  raise SystemExit(f"Expected one Math.random PIN assignment, found {pin_count}")
+              if sig_count != 1:
+                  raise SystemExit(f"Expected one reconnect signature, found {sig_count}")
+              if lookup_count != 1:
+                  raise SystemExit(f"Expected one reconnect fallback block, found {lookup_count}")
 
-            if (room.players.w?.sessionToken === sessionToken) {
-              targetPlayer = room.players.w;
-              opponent = room.players.b;
-            } else if (room.players.b?.sessionToken === sessionToken) {
-              targetPlayer = room.players.b;
-              opponent = room.players.w;
-            } else {
-              serverLogger.warn("RECONNECT", {
-                roomId,
-                socketId: newSocketId,
-                details: { error: "INVALID_SESSION_TOKEN" },
-              });
-              return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
-            }'''.replace("            ", "")
-
-          replacements = [
-            (old_pin, new_pin, "PIN generator"),
-            (old_sig, new_sig, "reconnect signature"),
-            (old_lookup, new_lookup, "reconnect credential lookup"),
-          ]
-
-          changed = False
-          for old, new, label in replacements:
-            if new in text:
-              continue
-            if old not in text:
-              raise SystemExit(f"Expected {label} source block not found")
-            text = text.replace(old, new, 1)
-            changed = True
-
-          if changed:
-            path.write_text(text)
+          if text != original:
+              path.write_text(text)
 
       - name: Install dependencies
         run: npm ci
