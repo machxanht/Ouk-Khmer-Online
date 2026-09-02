@@ -2,6 +2,8 @@
 
 A Cambodian Khmer Chess (_Ouk Chatrang_ / _Ouk Chaktrang_) application featuring Folk and International rules, offline AI, real-time online multiplayer, traditional audio, and Khmer Angkor-inspired design.
 
+> **Current deployment and handoff state:** read [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) before changing production, auth, ranked persistence, Vercel routing, Firebase, or DNS configuration.
+
 ## Features & Visual Identity
 
 - **Cinematic Splash Screen**
