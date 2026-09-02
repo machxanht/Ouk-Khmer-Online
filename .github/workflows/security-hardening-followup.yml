@@ -1,0 +1,153 @@
+name: Security hardening follow-up
+
+on:
+  push:
+    branches:
+      - security-hardening-followup
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Apply targeted hardening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("server/room-manager.ts")
+          text = path.read_text()
+
+          old_pin = '''  private generateUniquePin(): string {
+            for (let attempts = 0; attempts < 100; attempts++) {
+              const pin = Math.floor(100000 + Math.random() * 900000).toString();
+              if (!this.pinToRoomId.has(pin)) {
+                return pin;
+              }
+            }
+            return Math.floor(100000 + Math.random() * 900000).toString();
+          }'''.replace("            ", "")
+          new_pin = '''  private generateUniquePin(): string {
+            for (let attempts = 0; attempts < 100; attempts++) {
+              const pin = crypto.randomInt(100000, 1000000).toString();
+              if (!this.pinToRoomId.has(pin)) {
+                return pin;
+              }
+            }
+            throw new Error("Unable to generate a unique private-room PIN");
+          }'''.replace("            ", "")
+
+          old_sig = '''  public handleReconnect(
+            newSocketId: string,
+            roomId: string,
+            sessionToken?: string,
+            color?: string,
+          ):'''.replace("            ", "")
+          new_sig = '''  public handleReconnect(
+            newSocketId: string,
+            roomId: string,
+            sessionToken: string,
+          ):'''.replace("            ", "")
+
+          old_lookup = '''    let targetPlayer: PlayerInfo | null = null;
+            let opponent: PlayerInfo | null = null;
+
+            if (sessionToken) {
+              if (room.players.w?.sessionToken === sessionToken) {
+                targetPlayer = room.players.w;
+                opponent = room.players.b;
+              } else if (room.players.b?.sessionToken === sessionToken) {
+                targetPlayer = room.players.b;
+                opponent = room.players.w;
+              } else {
+                // If an invalid sessionToken was explicitly supplied, reject reconnection
+                serverLogger.warn("RECONNECT", {
+                  roomId,
+                  socketId: newSocketId,
+                  details: { error: "INVALID_SESSION_TOKEN" },
+                });
+                return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
+              }
+            } else if (color === "w" || color === "b") {
+              targetPlayer = room.players[color];
+              opponent = color === "w" ? room.players.b : room.players.w;
+            }
+
+            if (!targetPlayer) {
+              serverLogger.warn("RECONNECT", {
+                roomId,
+                socketId: newSocketId,
+                details: { error: "INVALID_SESSION_INFO" },
+              });
+              return { success: false, error: "Không tìm thấy thông tin phiên người chơi." };
+            }'''.replace("            ", "")
+          new_lookup = '''    let targetPlayer: PlayerInfo | null = null;
+            let opponent: PlayerInfo | null = null;
+
+            if (room.players.w?.sessionToken === sessionToken) {
+              targetPlayer = room.players.w;
+              opponent = room.players.b;
+            } else if (room.players.b?.sessionToken === sessionToken) {
+              targetPlayer = room.players.b;
+              opponent = room.players.w;
+            } else {
+              serverLogger.warn("RECONNECT", {
+                roomId,
+                socketId: newSocketId,
+                details: { error: "INVALID_SESSION_TOKEN" },
+              });
+              return { success: false, error: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn." };
+            }'''.replace("            ", "")
+
+          replacements = [
+            (old_pin, new_pin, "PIN generator"),
+            (old_sig, new_sig, "reconnect signature"),
+            (old_lookup, new_lookup, "reconnect credential lookup"),
+          ]
+
+          changed = False
+          for old, new, label in replacements:
+            if new in text:
+              continue
+            if old not in text:
+              raise SystemExit(f"Expected {label} source block not found")
+            text = text.replace(old, new, 1)
+            changed = True
+
+          if changed:
+            path.write_text(text)
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Core tests
+        run: npm test
+
+      - name: Auth security tests
+        run: npm run test:auth
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit verified changes
+        run: |
+          if git diff --quiet; then
+            echo "No code changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/room-manager.ts
+          git commit -m "security: require session token reconnect and secure PINs"
+          git push origin HEAD:security-hardening-followup
