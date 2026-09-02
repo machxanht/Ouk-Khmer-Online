@@ -41,11 +41,31 @@ const BOT_NAMES = [
   "Mengly Sok",
 ];
 
+type BotLevel = 2 | 3 | 4;
+
+const BOT_RATING_RANGES: Record<BotLevel, readonly [number, number]> = {
+  2: [1380, 1519],
+  3: [1520, 1659],
+  4: [1660, 1819],
+};
+
+function randomIntInclusive(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function getBotLevelFromRating(rating?: number): BotLevel {
+  if (rating && rating >= BOT_RATING_RANGES[4][0]) return 4;
+  if (rating && rating >= BOT_RATING_RANGES[3][0]) return 3;
+  return 2;
+}
+
 export class AIBotManager {
   private fallbackTimers: Map<string, NodeJS.Timeout> = new Map();
 
   /**
-   * Schedule AI fallback after 6 seconds of waiting in matchmaking.
+   * Schedule AI fallback after a human-like 10-30 second matchmaking wait.
+   * A real queued opponent always wins because the timer re-checks the queue
+   * and human matchmaking cancels this fallback before creating its room.
    */
   public scheduleFallback(
     socket: Socket,
@@ -62,23 +82,26 @@ export class AIBotManager {
   ) {
     this.cancelFallback(socket.id);
 
-    // 5.5 to 6.5s delay
-    const delayMs = 5500 + Math.floor(Math.random() * 1000);
+    // Pick the wait once per queue attempt: inclusive 10.0s to 30.0s.
+    const delayMs = randomIntInclusive(10_000, 30_000);
 
     const timer = setTimeout(() => {
       this.fallbackTimers.delete(socket.id);
 
-      // Check if socket is still waiting in queue
+      // Check if socket is still waiting in queue. A human match removes it first.
       if (!matchmakingManager.isInQueue(socket.id)) {
         return;
       }
 
-      // Remove from matchmaking queue
+      // Remove from matchmaking queue before creating the bot room, preventing a double match.
       matchmakingManager.leaveQueue(socket.id);
 
-      // Create a random realistic bot
+      // Create a random realistic opponent. AI strength is represented only server-side
+      // through its rating band; the client receives an ordinary opponent profile.
       const randomName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-      const botRating = 1460 + Math.floor(Math.random() * 340);
+      const botLevel = randomIntInclusive(2, 4) as BotLevel;
+      const [minRating, maxRating] = BOT_RATING_RANGES[botLevel];
+      const botRating = randomIntInclusive(minRating, maxRating);
       const botSocketId = `bot_${crypto.randomUUID().slice(0, 8)}`;
 
       const realPlayer: MatchmakingPlayer = {
@@ -129,11 +152,12 @@ export class AIBotManager {
         roomId: room.id,
         socketId: socket.id,
         botName: randomName,
+        botLevel,
         userColor,
         botColor,
       });
 
-      // Send game:start to human player
+      // Send an ordinary opponent profile to the human player. Do not leak the internal bot flag.
       socket.emit("game:start", {
         roomId: room.id,
         sessionToken: userColor === "w" ? room.players.w?.sessionToken : room.players.b?.sessionToken,
@@ -141,7 +165,6 @@ export class AIBotManager {
         opponent: {
           name: randomName,
           photoURL: null,
-          isBot: true,
           rating: botRating,
         },
         board: game.board,
@@ -205,20 +228,23 @@ export class AIBotManager {
       return;
     }
 
-    // Dynamic situation-aware thinking delay:
-    // - If in check: longer deliberate contemplation (2200ms - 3600ms)
-    // - Opening game (< 6 moves): faster intuitive play (1100ms - 1900ms)
-    // - Complex midgame: varied human deliberation (1400ms - 3100ms)
+    // Situation-aware random thinking delay. Keep moves visibly human-paced while
+    // avoiding a fixed cadence that would reveal the automated opponent.
     const isUnderCheck = Boolean(room.gameState.isCheck);
     const moveCount = room.gameState.moveHistory?.length || 0;
 
     let thinkDelay: number;
     if (isUnderCheck) {
-      thinkDelay = 2200 + Math.floor(Math.random() * 1400);
+      thinkDelay = randomIntInclusive(2200, 4200);
     } else if (moveCount < 6) {
-      thinkDelay = 1100 + Math.floor(Math.random() * 800);
+      thinkDelay = randomIntInclusive(1100, 2300);
     } else {
-      thinkDelay = 1400 + Math.floor(Math.random() * 1700);
+      thinkDelay = randomIntInclusive(1400, 3800);
+    }
+
+    // Occasionally pause a little longer, like a human reconsidering a position.
+    if (Math.random() < 0.12) {
+      thinkDelay += randomIntInclusive(700, 1600);
     }
 
     room.botTurnTimer = setTimeout(() => {
@@ -230,8 +256,7 @@ export class AIBotManager {
       }
 
       const ruleset: OukRuleSet = getRuleSet(room.rulesetId);
-      // Strictly AI Level 3 or Level 4 search depth (Level 4 for higher rated bots or tactical deep spots)
-      const aiDepth = (botPlayer.rating && botPlayer.rating >= 1620) ? 4 : 3;
+      const aiDepth = getBotLevelFromRating(botPlayer.rating);
       const computedMove = bestMove(room.gameState.board, botColor, aiDepth, ruleset);
 
       if (!computedMove) {
@@ -370,7 +395,6 @@ export class AIBotManager {
           opponent: {
             name: botPlayer.name,
             photoURL: null,
-            isBot: true,
             rating: botPlayer.rating,
           },
           board: game.board,
