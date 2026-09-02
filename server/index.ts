@@ -5,6 +5,7 @@ import { roomManager } from "./room-manager";
 import { serverLogger } from "./logger";
 import { authVerifier, type AuthenticatedUser } from "./auth-verifier";
 import { aiBotManager } from "./ai-bot-manager";
+import { rankedManager } from "./ranked-manager";
 
 export interface RealtimeServerOptions {
   port?: number;
@@ -49,6 +50,14 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
   setInterval(broadcastOnlineCount, 15000);
 
+  const persistRankedResult = (
+    room: any,
+    winner: "w" | "b" | "draw",
+    reason: string,
+  ) => {
+    void rankedManager.finalize(room, winner, reason);
+  };
+
   const onRoomTimeout = (
     r: any,
     winner: any,
@@ -60,6 +69,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
       details: { winner, reason, timedOutPlayer },
     });
 
+    persistRankedResult(r, winner, reason);
     io.to(r.id).emit("game:over", {
       winner,
       reason,
@@ -100,7 +110,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
         const authUser = await requireVerifiedUser(socket, payload?.authToken, "matchmaking");
         if (!authUser) return;
 
-        let name = authUser.displayName || payload?.playerName?.trim() || "Player";
+        const name = authUser.displayName || payload?.playerName?.trim() || "Player";
         const authMeta = authMetaFromUser(authUser);
 
         const mode =
@@ -330,6 +340,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
           if (room) {
             const playerColor = roomManager.getPlayerColor(room, socket.id);
             const winner = playerColor === "w" ? "b" : "w";
+            persistRankedResult(room, winner, "timeout");
             io.to(room.id).emit("game:over", {
               winner,
               reason: "timeout",
@@ -368,6 +379,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
           details: { winner, reason, turn: game.turn },
         });
 
+        persistRankedResult(moveResult.room, winner as "w" | "b" | "draw", reason);
         io.to(moveResult.room.id).emit("game:over", {
           winner,
           reason,
@@ -403,6 +415,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
           details: { winner: resignResult.winnerColor, reason: "resignation" },
         });
 
+        persistRankedResult(resignResult.room, resignResult.winnerColor, "resignation");
         io.to(resignResult.room.id).emit("game:over", {
           winner: resignResult.winnerColor,
           reason: "resignation",
@@ -431,6 +444,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
     socket.on("game:draw_accept", () => {
       const result = roomManager.handleDrawAccept(socket.id);
       if (result.success) {
+        persistRankedResult(result.room, "draw", "draw_agreement");
         io.to(result.room.id).emit("game:over", {
           winner: "draw",
           reason: "draw_agreement",
@@ -524,8 +538,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
           return;
         }
 
-        // A color is display metadata, never a credential. Reconnect requires the
-        // cryptographically random session token issued by the authoritative server.
         if (!sessionToken) {
           socket.emit("game:error", {
             code: "RECONNECT_FAILED",
@@ -616,6 +628,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
       matchmakingManager.leaveQueue(socket.id);
       const leaveResult = roomManager.handleManualLeave(socket.id);
       if (leaveResult && leaveResult.type === "playing_game_over") {
+        persistRankedResult(leaveResult.room, leaveResult.winnerColor, "player_left");
         io.to(leaveResult.opponentSocketId).emit("game:over", {
           winner: leaveResult.winnerColor,
           reason: "player_left",
