@@ -1,0 +1,135 @@
+
+> test
+> npx tsx src/lib/khmer-chess.test.ts
+
+[PASS] 1. Folk: King first-move jump legal
+[PASS] 2. Folk: King first-move jump unavailable when in check
+[PASS] 3. Folk: King loses jump privilege after normal first move
+[PASS] 4. Folk: Neang first-move two-square move legal
+[PASS] 5. Folk: Neang two-square move requires clear path
+[PASS] 6. Folk: Neang loses special move after first move
+[PASS] 7. International: King first-move jump illegal
+[PASS] 8. International: Neang first-move two-square move illegal
+[PASS] 9. International: King normal movement works
+[PASS] 10. International: Neang normal diagonal movement works
+[PASS] 11. International: Standard clock initializes at 3600 seconds
+[PASS] 12. International: Blitz clock initializes at 300 seconds
+[PASS] 13. International: Touch-move state is enforced
+[PASS] 14. International: Tournament scoring values are correct
+[PASS] 15. Common: Trey promotion to Trey Bork on 6th rank
+[PASS] 16. Common: Trey Bork movement
+[PASS] 17. Common: Check detection
+[PASS] 18. Common: Checkmate detection
+[PASS] 19. Common: Stalemate detection
+[PASS] 20. Common: Mij/counting subsystem
+[PASS] 21. AI uses Folk rules when rulesetId = folk
+[PASS] 22. AI uses International rules when rulesetId = international
+[PASS] 23. Switching settings cannot mutate an active match
+[PASS] 24. New Game creates the selected ruleset
+[PASS] 25. Combination: Folk + AI
+[PASS] 26. Combination: Folk + Local 2P
+[PASS] 27. Combination: International + AI
+[PASS] 28. Combination: International + Local 2P
+[PASS] 29. International piece with legal moves becomes locked
+[PASS] 30. International cannot switch to another friendly piece
+[PASS] 31. International cannot deselect locked piece
+[PASS] 32. International can complete a legal move
+[PASS] 33. International lock clears after move
+[PASS] 34. Piece with no legal moves does not create unusable lock
+[PASS] 35. Folk mode permits normal deselection and switching
+[PASS] 36. White checkmates Black -> White wins, reason: checkmate
+[PASS] 37. Black checkmates White -> Black wins, reason: checkmate
+[PASS] 38. Stalemate -> Draw, reason: stalemate
+[PASS] 39. Mij / counting limit reached -> Draw, reason: mij
+[PASS] 40. White resigns -> Black wins, reason: resignation
+[PASS] 41. Black resigns -> White wins, reason: resignation
+[PASS] 42. White timeout -> Black wins, reason: timeout
+[PASS] 43. Black timeout -> White wins, reason: timeout
+[PASS] 44. AI mode: Human victory translates to 'Victory'
+[PASS] 45. AI mode: AI victory translates to 'Defeat' for human
+[PASS] 46. Local 2P mode translates to side-based 'White wins'
+[PASS] 47. Finished board cannot receive another move
+[PASS] 48. Stale Worker response is safely ignored after game over
+[PASS] 49. International scoring defines Win=1, Draw=0.5, Loss=0
+[PASS] 50. Folk mode has null scoring definition
+[PASS] 51. Web Worker remains a singleton instance across game plies and terminal state
+[PASS] 52. Web Worker is terminated exactly once on unmount
+[PASS] 53. Worker onmessage executes latest commitRef without stale closure
+[PASS] 54. Invalidation prevents stale AI moves after Undo, Resign, or New Game
+[PASS] 55. isTerminalRef halts thinking and rejects move application in terminal match
+[PASS] 56. Hint displays suggested move coordinates without mutating board turn
+[PASS] 57a. Normal board does not highlight king square for check
+[PASS] 57b. King under check is accurately identified at square 60
+[PASS] 58a. Last move stores origin and destination squares
+[PASS] 58b. New game resets last move highlight
+[PASS] 59a. Piece with legal moves activates touch-move lock
+[PASS] 59b. Folk mode never engages touch-move lock
+[PASS] 60a. AI mode White turn produces 'Your turn'
+[PASS] 60b. AI mode Black turn with thinking produces 'AI thinking…'
+[PASS] 60c. Local 2P White turn produces 'White to move'
+[PASS] 60d. Local 2P Black turn produces 'Black to move'
+[PASS] 60e. Check takes precedence over turn label
+[PASS] 61. BGM tracks catalog includes all 4 traditional Khmer compositions
+[PASS] 62. All BGM tracks fulfill strict metadata and scheduler interface contracts
+[PASS] 63a. Audio Manager updates active BGM track to royal_khmer
+[PASS] 63b. Audio Manager updates active BGM track to temple_garden
+[PASS] 64. Setting BGM track to 'off' records state cleanly without error
+[PASS] 65a. Music volume sets to 0.8
+[PASS] 65b. Music volume clamps over-range value to 1.0
+[PASS] 65c. Music volume clamps under-range value to 0.0
+[PASS] 66a. SFX volume sets to 0.65
+[PASS] 66b. SFX volume clamps over-range to 1.0
+[PASS] 66c. SFX volume clamps under-range to 0.0
+[PASS] 67a. SFX enabled state can be toggled off
+[PASS] 67b. SFX enabled state can be toggled on
+[PASS] 68. Non-capture move correctly maps to 'move' SFX
+[PASS] 69. Capture move correctly maps to 'capture' SFX
+[PASS] 70. Promotion move to row 2 maps to 'promotion' SFX
+[PASS] 71. Move delivering check correctly maps to 'check' SFX
+[PASS] 72. Resignation match result maps to 'resignation' SFX
+[PASS] 73. Timeout match result maps to 'timeout' SFX
+[PASS] 74. Honor count draw match result maps to 'draw' SFX
+[PASS] 75a. White checkmate victory in AI mode produces 'victory' SFX
+[PASS] 75b. Black checkmate victory in AI mode produces 'defeat' SFX
+[PASS] 76. Audio Manager calls execute safely without throwing exceptions in test environment
+[PASS] 77. Audio Manager cleanup terminates resources gracefully
+[PASS] 78. Audio operations never mutate board state or game engine data
+[PASS] 79. Piece Style: Default piece style is Ada Gold & Obsidian
+[PASS] 80. Piece Style: All 3 verified styles produce valid 14 SVG piece asset paths
+[PASS] 81. Piece Style: Promoted Fish (Trey Bork) maps to 'wF.svg' and 'bF.svg'
+[PASS] 82. Piece Style: 7 Ouk pieces match Cambodian Chaktrang taxonomy
+[PASS] 83. Home Module Matrix: 2P Local and Online Match are strictly retained
+[PASS] 84. Home Module Matrix: 5 duplicate navigation modules are excluded from Home
+[PASS] 85. Home Ouk Piece Grid: 3x2 layout with exact 6 pieces (no Trey Bork in Home grid)
+[PASS] 86. Home Ouk Piece Grid: Zero Xiangqi or foreign chess taxonomy
+[PASS] 87. Android Launcher Icon: Adaptive icon XML references mipmap layers
+[PASS] 88. Android Launcher Icon: All 5 screen densities supported
+[PASS] 89. Brand Mascot: mascot.png exists with authentic binary structure
+[FAIL] 90. Brand Mascot: AppShell header and Welcome screen use mascot asset: Assertion failed
+[PASS] 91. Cultural Assets: Official angkor-hero, khmer-audio, and home mascot verified
+[PASS] 92. Audio Lifecycle: Suspended/absent AudioContext does NOT start BGM timer
+[PASS] 93. Audio Lifecycle: BGM 'off' state never schedules an interval
+[PASS] 94. Audio Lifecycle: BGM stop cleanly resets timer and step counter
+[PASS] 95. Audio Lifecycle: Track switching updates track and does not leave duplicate timers
+[PASS] 96. Audio Lifecycle: onended handler disconnects osc, filter, and gain nodes
+[PASS] 97. Audio Lifecycle: All SFX procedural generators implement onended cleanup
+[PASS] 98. Audio Lifecycle: All BGM instrument synthesizers implement onended cleanup
+[PASS] 99. Audio Lifecycle: AudioManager strictly gates BGM playback on running state
+[PASS] 100. Phase 28 BGM: Low-Allocation buffer architecture implemented in tracks.ts
+[PASS] 101. Phase 28 BGM: AudioBufferSourceNode looping with loop = true in AudioManager
+[PASS] 102. Phase 28 BGM: BGM stop cleanly clears bgmSource reference
+[PASS] 103. Phase 28 BGM: Track switching cleanly transitions tracks
+[PASS] 104. Phase 28 BGM: Resume BGM operates cleanly without duplication
+[PASS] 105. Phase 28 BGM: AudioContext singleton remains exactly one instance
+[PASS] 106. Phase 28 BGM: SFX procedural engine remains fully intact and unregressed
+[PASS] 107. Phase 28 BGM: Peak active node count is strictly bounded
+[PASS] 108. Phase 28 BGM: Offline rendering cache prevents redundant rendering passes
+[PASS] 109. Phase 28 BGM: Playback avoids real-time setInterval audio node synthesis
+[PASS] 110. King Capture: Immediate terminal victory for capturing player
+[PASS] 111. Server Game Engine: King capture finishes game and blocks subsequent moves
+[PASS] 112. Internationalization: reason_king_capture localized across all languages
+[PASS] 113. Status: Missing king evaluated as king_captured with winner assigned
+
+==========================================
+TEST SUMMARY: 126 / 127 PASSED
+==========================================
