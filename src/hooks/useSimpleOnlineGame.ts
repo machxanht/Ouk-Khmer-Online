@@ -74,17 +74,14 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
   const [queueSize, setQueueSize] = useState<number>(0);
   const [messages, setMessages] = useState<ChatMessagePayload[]>([]);
 
-  // Draw Offer State
   const [drawOfferSent, setDrawOfferSent] = useState<boolean>(false);
   const [drawOfferReceived, setDrawOfferReceived] = useState<boolean>(false);
   const [drawDeclinedNotice, setDrawDeclinedNotice] = useState<boolean>(false);
 
-  // Rematch State
   const [rematchOfferSent, setRematchOfferSent] = useState<boolean>(false);
   const [rematchOfferReceived, setRematchOfferReceived] = useState<boolean>(false);
   const [rematchDeclinedNotice, setRematchDeclinedNotice] = useState<boolean>(false);
 
-  // Opponent connection notice
   const [opponentNotice, setOpponentNotice] = useState<string | null>(null);
 
   const matchStatusRef = useRef<MatchStatus>(matchStatus);
@@ -93,7 +90,6 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
   const roomRef = useRef<OnlineRoom | null>(room);
   roomRef.current = room;
 
-  // Initialize socket listeners & session resume
   useEffect(() => {
     const socket = onlineClient.connect();
 
@@ -107,10 +103,11 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setPlayer((p) => ({ ...p, id: onlineClient.getSocketId() || "" }));
       setError(null);
 
-      // Auto-reconnect if session exists
       const saved = loadSession();
-      if (saved && saved.roomId) {
+      if (saved?.roomId && saved.sessionToken) {
         onlineClient.reconnectGame(saved.roomId, saved.sessionToken, saved.color);
+      } else if (saved?.roomId) {
+        clearSession();
       }
     });
 
@@ -135,16 +132,16 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
 
     const unsubCreated = onlineClient.on("room:created", (data) => {
       setMatchStatus("waiting");
-      setRoom({
-        id: data.roomId,
-        pin: data.pin,
-        type: "private",
-      });
+      setRoom({ id: data.roomId, pin: data.pin, type: "private" });
       setPlayer((p) => ({ ...p, color: "w" }));
       setError(null);
     });
 
     const unsubRoomError = onlineClient.on("room:error", (data) => {
+      if (data.code === "AUTH_REQUIRED") {
+        setMatchStatus("idle");
+        setRoom(null);
+      }
       setError(data.message);
     });
 
@@ -180,7 +177,6 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setOpponentNotice(null);
       setError(null);
 
-      // Persist active match session for device resume
       saveSession({
         roomId: data.roomId,
         sessionToken: data.sessionToken,
@@ -224,11 +220,8 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
 
     const unsubPlayerStatus = onlineClient.on("player:status", (data: PlayerStatusPayload) => {
       setOpponent((prev) => (prev ? { ...prev, connected: data.connected } : prev));
-      if (!data.connected) {
-        setOpponentNotice(data.message || "Đối thủ đang kết nối lại...");
-      } else {
-        setOpponentNotice(null);
-      }
+      if (!data.connected) setOpponentNotice(data.message || "Đối thủ đang kết nối lại...");
+      else setOpponentNotice(null);
     });
 
     const unsubMoved = onlineClient.on("game:moved", (data: GameMovedPayload) => {
@@ -248,11 +241,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
           lastTurnTimestamp: data.lastTurnTimestamp ?? prev.lastTurnTimestamp,
           afkStrikes: data.afkStrikes ?? prev.afkStrikes,
           afkEnabled: data.afkEnabled ?? prev.afkEnabled,
-          lastMove: {
-            from: data.from,
-            to: data.to,
-            color: data.color,
-          },
+          lastMove: { from: data.from, to: data.to, color: data.color },
           result: data.result,
         };
       });
@@ -277,8 +266,11 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
     );
 
     const unsubGameError = onlineClient.on("game:error", (data) => {
-      if (data.code === "RECONNECT_FAILED") {
-        clearSession();
+      if (data.code === "RECONNECT_FAILED") clearSession();
+      if (data.code === "AUTH_REQUIRED") {
+        setMatchStatus("idle");
+        setQueueSize(0);
+        setRoom(null);
       }
       setError(data.message);
     });
@@ -299,17 +291,8 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setDrawOfferSent(false);
       setDrawOfferReceived(false);
       setOpponentNotice(null);
-
-      // Record ELO & match stats for online game
-      if (playerColor) {
-        const isWin = data.winner === playerColor;
-        const isDraw = data.winner === "draw";
-        const outcome = isWin ? "win" : isDraw ? "draw" : "loss";
-        const opponentRating = opponent?.rating || 1200;
-        authManager.recordOnlineMatchResult(outcome, opponentRating).catch((err) => {
-          console.warn("Failed to record online match ELO:", err);
-        });
-      }
+      // Ranked rating/stat persistence is server-authoritative. The client must
+      // never calculate or write its own online match result.
     });
 
     const unsubDrawOffered = onlineClient.on("game:draw_offered", (_data: DrawOfferedPayload) => {
@@ -324,9 +307,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
 
     const unsubRematchOffered = onlineClient.on(
       "game:rematch_offered",
-      (_data: RematchOfferedPayload) => {
-        setRematchOfferReceived(true);
-      },
+      (_data: RematchOfferedPayload) => setRematchOfferReceived(true),
     );
 
     const unsubRematchDeclined = onlineClient.on("game:rematch_declined", () => {
@@ -335,21 +316,19 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setTimeout(() => setRematchDeclinedNotice(false), 4000);
     });
 
-    const unsubPlayerLeft = onlineClient.on("player:left", (data) => {
-      setError(data.message);
-    });
-
+    const unsubPlayerLeft = onlineClient.on("player:left", (data) => setError(data.message));
     const unsubChatMessage = onlineClient.on("chat:message", (data: ChatMessagePayload) => {
       setMessages((prev) => [...prev, data]);
     });
 
-    // Page visibility / unlock / resume handler
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         const saved = loadSession();
-        if (saved && saved.roomId) {
+        if (saved?.roomId && saved.sessionToken) {
           onlineClient.connect();
           onlineClient.reconnectGame(saved.roomId, saved.sessionToken, saved.color);
+        } else if (saved?.roomId) {
+          clearSession();
         }
       }
     };
@@ -391,7 +370,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setPlayer((p) => ({ ...p, name: playerName }));
       setError(null);
       setMatchStatus("searching");
-      const token = await authManager.getIdToken().catch(() => undefined);
+      const token = (await authManager.getIdToken().catch(() => null)) || undefined;
       onlineClient.joinMatchmaking(playerName, rulesetId, mode, timeControl, token);
     },
     [player.name],
@@ -414,7 +393,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       setPlayer((p) => ({ ...p, name: playerName }));
       setError(null);
       setMatchStatus("waiting");
-      const token = await authManager.getIdToken().catch(() => undefined);
+      const token = (await authManager.getIdToken().catch(() => null)) || undefined;
       onlineClient.createPrivateRoom(playerName, rulesetId, mode, timeControl, token);
     },
     [player.name],
@@ -425,7 +404,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
       const playerName = name || player.name;
       setPlayer((p) => ({ ...p, name: playerName }));
       setError(null);
-      const token = await authManager.getIdToken().catch(() => undefined);
+      const token = (await authManager.getIdToken().catch(() => null)) || undefined;
       onlineClient.joinPrivateRoom(pin, playerName, token);
     },
     [player.name],
@@ -466,9 +445,7 @@ export function useSimpleOnlineGame(defaultPlayerName: string = "Người chơi"
     onlineClient.declineRematch();
   }, []);
 
-  const sendMessage = useCallback((text: string) => {
-    onlineClient.sendChat(text);
-  }, []);
+  const sendMessage = useCallback((text: string) => onlineClient.sendChat(text), []);
 
   const resetToMenu = useCallback(() => {
     clearSession();

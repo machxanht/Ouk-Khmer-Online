@@ -1,31 +1,55 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if the user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Helper function to check if the user is accessing their own record
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users Collection: Public read for ranking/leaderboards, owner-only write
+    function validInitialRankedStats() {
+      return (!('rating' in request.resource.data) || request.resource.data.rating == 1200)
+        && (!('peakRating' in request.resource.data) || request.resource.data.peakRating == 1200)
+        && (!('wins' in request.resource.data) || request.resource.data.wins == 0)
+        && (!('losses' in request.resource.data) || request.resource.data.losses == 0)
+        && (!('draws' in request.resource.data) || request.resource.data.draws == 0)
+        && (!('winStreak' in request.resource.data) || request.resource.data.winStreak == 0)
+        && (!('gamesPlayed' in request.resource.data) || request.resource.data.gamesPlayed == 0);
+    }
+
+    function rankedStatsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'rating',
+        'peakRating',
+        'wins',
+        'losses',
+        'draws',
+        'winStreak',
+        'gamesPlayed'
+      ]);
+    }
+
+    // Compatibility note: leaderboard currently reads this collection publicly.
+    // Ranked fields are server-authoritative; clients may only maintain profile metadata.
     match /users/{userId} {
       allow read: if true;
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isOwner(userId) && request.resource.data.uid == userId;
-      allow delete: if false; // Disallow raw deletion from client for security
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && validInitialRankedStats();
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && rankedStatsUnchanged();
+      allow delete: if false;
     }
 
-    // Public Profiles or Read-only match records
+    // Match results are immutable from clients and written by the authoritative backend.
     match /match_history/{matchId} {
       allow read: if isAuthenticated();
-      allow write: if false; // Server-authoritative writes only
+      allow write: if false;
     }
 
-    // Default deny all other collections
     match /{document=**} {
       allow read, write: if false;
     }

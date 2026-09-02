@@ -3,12 +3,40 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import { matchmakingManager } from "./matchmaking-manager";
 import { roomManager } from "./room-manager";
 import { serverLogger } from "./logger";
-import { authVerifier } from "./auth-verifier";
+import { authVerifier, type AuthenticatedUser } from "./auth-verifier";
 import { aiBotManager } from "./ai-bot-manager";
+import { rankedManager } from "./ranked-manager";
 
 export interface RealtimeServerOptions {
   port?: number;
   corsOrigin?: string | string[];
+}
+
+function emitAuthRequired(socket: Socket, surface: "matchmaking" | "room") {
+  const payload = {
+    code: "AUTH_REQUIRED",
+    message: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.",
+  };
+  if (surface === "room") socket.emit("room:error", payload);
+  else socket.emit("game:error", payload);
+}
+
+async function requireVerifiedUser(
+  socket: Socket,
+  token: string | undefined,
+  surface: "matchmaking" | "room",
+): Promise<AuthenticatedUser | null> {
+  const user = await authVerifier.verifyToken(token);
+  if (!user) emitAuthRequired(socket, surface);
+  return user;
+}
+
+function authMetaFromUser(user: AuthenticatedUser) {
+  return {
+    uid: user.uid,
+    photoURL: user.photoURL,
+    emailVerified: user.emailVerified,
+  };
 }
 
 export function registerSocketHandlers(io: SocketIOServer) {
@@ -20,8 +48,15 @@ export function registerSocketHandlers(io: SocketIOServer) {
     });
   };
 
-  // Broadcast periodically every 15s
   setInterval(broadcastOnlineCount, 15000);
+
+  const persistRankedResult = (
+    room: any,
+    winner: "w" | "b" | "draw",
+    reason: string,
+  ) => {
+    void rankedManager.finalize(room, winner, reason);
+  };
 
   const onRoomTimeout = (
     r: any,
@@ -31,21 +66,14 @@ export function registerSocketHandlers(io: SocketIOServer) {
   ) => {
     serverLogger.info("GAME_OVER", {
       roomId: r.id,
-      details: {
-        winner,
-        reason,
-        timedOutPlayer,
-      },
+      details: { winner, reason, timedOutPlayer },
     });
 
+    persistRankedResult(r, winner, reason);
     io.to(r.id).emit("game:over", {
       winner,
       reason,
-      result: {
-        winner,
-        reason,
-        timedOutPlayer,
-      },
+      result: { winner, reason, timedOutPlayer },
     });
   };
 
@@ -69,7 +97,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
   io.on("connection", (socket: Socket) => {
     serverLogger.debug("SOCKET_CONNECT", { socketId: socket.id });
     broadcastOnlineCount();
-    // 1. RANDOM MATCHMAKING
+
     socket.on(
       "matchmaking:join",
       async (payload?: {
@@ -79,23 +107,11 @@ export function registerSocketHandlers(io: SocketIOServer) {
         timeControl?: { type: "standard" | "blitz" | "custom"; initialSeconds?: number };
         authToken?: string;
       }) => {
-        let name = payload?.playerName?.trim() || "Player";
-        let authMeta:
-          { uid?: string; photoURL?: string | null; emailVerified?: boolean } | undefined;
+        const authUser = await requireVerifiedUser(socket, payload?.authToken, "matchmaking");
+        if (!authUser) return;
 
-        if (payload?.authToken) {
-          const authUser = await authVerifier.verifyToken(payload.authToken);
-          if (authUser) {
-            authMeta = {
-              uid: authUser.uid,
-              photoURL: authUser.photoURL,
-              emailVerified: authUser.emailVerified,
-            };
-            if (authUser.displayName) {
-              name = authUser.displayName;
-            }
-          }
-        }
+        const name = authUser.displayName || payload?.playerName?.trim() || "Player";
+        const authMeta = authMetaFromUser(authUser);
 
         const mode =
           payload?.mode ||
@@ -126,7 +142,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
           aiBotManager.cancelFallback(p2.socketId);
 
           const room = roomManager.createMatchmakingRoom(p1, p2, matchRulesetId, matchTimeControl);
-
           const socket1 = io.sockets.sockets.get(p1.socketId);
           const socket2 = io.sockets.sockets.get(p2.socketId);
 
@@ -134,11 +149,8 @@ export function registerSocketHandlers(io: SocketIOServer) {
           socket2?.join(room.id);
 
           const game = room.gameState!;
-
-          // Start authoritative clock timer for the room
           roomManager.startTurnTimer(room, onRoomTimeout, onTurnSkipped);
 
-          // Send game:start to White (P1)
           socket1?.emit("game:start", {
             roomId: room.id,
             sessionToken: room.players.w?.sessionToken,
@@ -156,7 +168,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
             afkEnabled: game.afkEnabled,
           });
 
-          // Send game:start to Black (P2)
           socket2?.emit("game:start", {
             roomId: room.id,
             sessionToken: room.players.b?.sessionToken,
@@ -192,7 +203,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
       socket.emit("matchmaking:left");
     });
 
-    // 2. PRIVATE ROOM
     socket.on(
       "create:private",
       async (payload?: {
@@ -202,23 +212,11 @@ export function registerSocketHandlers(io: SocketIOServer) {
         timeControl?: { type: "standard" | "blitz" | "custom"; initialSeconds?: number };
         authToken?: string;
       }) => {
-        let name = payload?.playerName?.trim() || "Host";
-        let authMeta:
-          { uid?: string; photoURL?: string | null; emailVerified?: boolean } | undefined;
+        const authUser = await requireVerifiedUser(socket, payload?.authToken, "room");
+        if (!authUser) return;
 
-        if (payload?.authToken) {
-          const authUser = await authVerifier.verifyToken(payload.authToken);
-          if (authUser) {
-            authMeta = {
-              uid: authUser.uid,
-              photoURL: authUser.photoURL,
-              emailVerified: authUser.emailVerified,
-            };
-            if (authUser.displayName) {
-              name = authUser.displayName;
-            }
-          }
-        }
+        const name = authUser.displayName || payload?.playerName?.trim() || "Host";
+        const authMeta = authMetaFromUser(authUser);
 
         const mode =
           payload?.mode ||
@@ -258,10 +256,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
       "join:private",
       async (payload: { pin: string; playerName?: string; authToken?: string }) => {
         const pin = payload?.pin;
-        let name = payload?.playerName?.trim() || "Guest";
-        let authMeta:
-          { uid?: string; photoURL?: string | null; emailVerified?: boolean } | undefined;
-
         if (!pin) {
           socket.emit("room:error", {
             code: "INVALID_PIN",
@@ -270,26 +264,15 @@ export function registerSocketHandlers(io: SocketIOServer) {
           return;
         }
 
-        if (payload?.authToken) {
-          const authUser = await authVerifier.verifyToken(payload.authToken);
-          if (authUser) {
-            authMeta = {
-              uid: authUser.uid,
-              photoURL: authUser.photoURL,
-              emailVerified: authUser.emailVerified,
-            };
-            if (authUser.displayName) {
-              name = authUser.displayName;
-            }
-          }
-        }
+        const authUser = await requireVerifiedUser(socket, payload?.authToken, "room");
+        if (!authUser) return;
 
+        const name = authUser.displayName || payload?.playerName?.trim() || "Guest";
+        const authMeta = authMetaFromUser(authUser);
         const result = roomManager.joinPrivateRoom(pin, socket.id, name, authMeta);
+
         if (!result.success) {
-          socket.emit("room:error", {
-            code: result.code,
-            message: result.message,
-          });
+          socket.emit("room:error", { code: result.code, message: result.message });
           return;
         }
 
@@ -299,11 +282,8 @@ export function registerSocketHandlers(io: SocketIOServer) {
         const hostSocket = io.sockets.sockets.get(room.players.w!.socketId);
         const guestSocket = socket;
         const game = room.gameState!;
-
-        // Start authoritative clock timer for the room
         roomManager.startTurnTimer(room, onRoomTimeout, onTurnSkipped);
 
-        // Send game:start to Host (White)
         hostSocket?.emit("game:start", {
           roomId: room.id,
           pin: room.pin,
@@ -326,7 +306,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
           afkEnabled: game.afkEnabled,
         });
 
-        // Send game:start to Guest (Black)
         guestSocket.emit("game:start", {
           roomId: room.id,
           pin: room.pin,
@@ -351,7 +330,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
       },
     );
 
-    // 3. IN-GAME ACTIONS
     socket.on("game:move", (payload: { from: number; to: number }) => {
       const moveResult = roomManager.handleMove(socket.id, payload?.from, payload?.to);
 
@@ -362,24 +340,19 @@ export function registerSocketHandlers(io: SocketIOServer) {
           if (room) {
             const playerColor = roomManager.getPlayerColor(room, socket.id);
             const winner = playerColor === "w" ? "b" : "w";
+            persistRankedResult(room, winner, "timeout");
             io.to(room.id).emit("game:over", {
               winner,
               reason: "timeout",
-              result: {
-                winner,
-                reason: "timeout",
-                timedOutPlayer: playerColor,
-              },
+              result: { winner, reason: "timeout", timedOutPlayer: playerColor },
             });
           }
         }
         return;
       }
 
-      // Broadcast move to both players
       io.to(moveResult.room.id).emit("game:moved", moveResult.movedPayload);
 
-      // Check if game has ended
       if (moveResult.room.status === "finished") {
         const game = moveResult.room.gameState!;
         const winner =
@@ -403,23 +376,18 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
         serverLogger.info("GAME_OVER", {
           roomId: moveResult.room.id,
-          details: {
-            winner,
-            reason,
-            turn: game.turn,
-          },
+          details: { winner, reason, turn: game.turn },
         });
 
+        persistRankedResult(moveResult.room, winner as "w" | "b" | "draw", reason);
         io.to(moveResult.room.id).emit("game:over", {
           winner,
           reason,
           result: game.result,
         });
       } else {
-        // Continue match: Schedule timer for next turn
         roomManager.startTurnTimer(moveResult.room, onRoomTimeout, onTurnSkipped);
 
-        // If playing against bot and now it's bot's turn, trigger bot thinking
         if (moveResult.room.isBotRoom) {
           const botColor = moveResult.room.players.w?.isBot
             ? "w"
@@ -444,24 +412,18 @@ export function registerSocketHandlers(io: SocketIOServer) {
       if (resignResult.success) {
         serverLogger.info("GAME_OVER", {
           roomId: resignResult.room.id,
-          details: {
-            winner: resignResult.winnerColor,
-            reason: "resignation",
-          },
+          details: { winner: resignResult.winnerColor, reason: "resignation" },
         });
 
+        persistRankedResult(resignResult.room, resignResult.winnerColor, "resignation");
         io.to(resignResult.room.id).emit("game:over", {
           winner: resignResult.winnerColor,
           reason: "resignation",
-          result: {
-            winner: resignResult.winnerColor,
-            reason: "resignation",
-          },
+          result: { winner: resignResult.winnerColor, reason: "resignation" },
         });
       }
     });
 
-    // 4. DRAW OFFER & ACCEPTANCE
     socket.on("game:draw_offer", () => {
       const room = roomManager.getRoomBySocket(socket.id);
       if (room?.isBotRoom) {
@@ -482,13 +444,11 @@ export function registerSocketHandlers(io: SocketIOServer) {
     socket.on("game:draw_accept", () => {
       const result = roomManager.handleDrawAccept(socket.id);
       if (result.success) {
+        persistRankedResult(result.room, "draw", "draw_agreement");
         io.to(result.room.id).emit("game:over", {
           winner: "draw",
           reason: "draw_agreement",
-          result: {
-            winner: "draw",
-            reason: "draw_agreement",
-          },
+          result: { winner: "draw", reason: "draw_agreement" },
         });
       } else {
         socket.emit("game:error", { code: "DRAW_ERROR", message: result.error });
@@ -497,12 +457,9 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
     socket.on("game:draw_decline", () => {
       const result = roomManager.handleDrawDecline(socket.id);
-      if (result.success) {
-        io.to(result.opponentSocketId).emit("game:draw_declined");
-      }
+      if (result.success) io.to(result.opponentSocketId).emit("game:draw_declined");
     });
 
-    // 5. REMATCH FLOW
     socket.on("game:rematch_request", () => {
       const currentRoom = roomManager.getRoomBySocket(socket.id);
       if (currentRoom?.isBotRoom) {
@@ -518,7 +475,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
         const socketB = io.sockets.sockets.get(playerB.socketId);
         const game = room.gameState!;
 
-        // Send game:start to White
         socketW?.emit("game:start", {
           roomId: room.id,
           pin: room.pin,
@@ -537,7 +493,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
           afkEnabled: game.afkEnabled,
         });
 
-        // Send game:start to Black
         socketB?.emit("game:start", {
           roomId: room.id,
           pin: room.pin,
@@ -566,16 +521,15 @@ export function registerSocketHandlers(io: SocketIOServer) {
 
     socket.on("game:rematch_decline", () => {
       const result = roomManager.handleRematchDecline(socket.id);
-      if (result.success) {
-        io.to(result.opponentSocketId).emit("game:rematch_declined");
-      }
+      if (result.success) io.to(result.opponentSocketId).emit("game:rematch_declined");
     });
 
-    // 6. SESSION RECONNECT & RESUME
     socket.on(
       "game:reconnect",
       (payload?: { roomId?: string; sessionToken?: string; color?: string }) => {
         const roomId = payload?.roomId;
+        const sessionToken = payload?.sessionToken;
+
         if (!roomId) {
           socket.emit("game:error", {
             code: "RECONNECT_FAILED",
@@ -584,12 +538,15 @@ export function registerSocketHandlers(io: SocketIOServer) {
           return;
         }
 
-        const result = roomManager.handleReconnect(
-          socket.id,
-          roomId,
-          payload.sessionToken,
-          payload.color,
-        );
+        if (!sessionToken) {
+          socket.emit("game:error", {
+            code: "RECONNECT_FAILED",
+            message: "Phiên trận đấu không hợp lệ. Vui lòng quay lại sảnh.",
+          });
+          return;
+        }
+
+        const result = roomManager.handleReconnect(socket.id, roomId, sessionToken);
 
         if (!result.success) {
           socket.emit("game:error", {
@@ -602,14 +559,11 @@ export function registerSocketHandlers(io: SocketIOServer) {
         const { room, player, opponent, staleSocketId } = result;
         if (staleSocketId) {
           const staleSocket = io.sockets.sockets.get(staleSocketId);
-          if (staleSocket) {
-            staleSocket.leave(room.id);
-          }
+          if (staleSocket) staleSocket.leave(room.id);
         }
         socket.join(room.id);
         const game = room.gameState!;
 
-        // Send full state snapshot to reconnecting player
         socket.emit("game:reconnected", {
           roomId: room.id,
           pin: room.pin,
@@ -632,7 +586,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
           lastMove: game.lastMove,
         });
 
-        // Notify opponent that player is back online
         if (opponent?.socketId) {
           io.to(opponent.socketId).emit("player:status", {
             color: player.color,
@@ -643,12 +596,9 @@ export function registerSocketHandlers(io: SocketIOServer) {
       },
     );
 
-    // 7. REALTIME IN-GAME CHAT
     socket.on("chat:send", (payload?: { message?: string; text?: string }) => {
       const room = roomManager.getRoomBySocket(socket.id);
-      if (!room) {
-        return;
-      }
+      if (!room) return;
 
       const rawText =
         typeof payload?.message === "string"
@@ -657,44 +607,32 @@ export function registerSocketHandlers(io: SocketIOServer) {
             ? payload.text
             : "";
       const cleanText = rawText.trim();
-
-      // Reject empty or messages exceeding 200 characters
-      if (!cleanText || cleanText.length === 0 || cleanText.length > 200) {
-        return;
-      }
+      if (!cleanText || cleanText.length > 200) return;
 
       const senderColor = roomManager.getPlayerColor(room, socket.id);
       let senderName = "Player";
-      if (senderColor === "w" && room.players.w) {
-        senderName = room.players.w.name;
-      } else if (senderColor === "b" && room.players.b) {
-        senderName = room.players.b.name;
-      }
+      if (senderColor === "w" && room.players.w) senderName = room.players.w.name;
+      else if (senderColor === "b" && room.players.b) senderName = room.players.b.name;
 
-      const chatMessage = {
+      io.to(room.id).emit("chat:message", {
         id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         senderId: socket.id,
         senderName,
         senderColor,
         text: cleanText,
         timestamp: Date.now(),
-      };
-
-      // Broadcast exclusively to players in the specific room
-      io.to(room.id).emit("chat:message", chatMessage);
+      });
     });
 
     socket.on("game:leave", () => {
       matchmakingManager.leaveQueue(socket.id);
       const leaveResult = roomManager.handleManualLeave(socket.id);
       if (leaveResult && leaveResult.type === "playing_game_over") {
+        persistRankedResult(leaveResult.room, leaveResult.winnerColor, "player_left");
         io.to(leaveResult.opponentSocketId).emit("game:over", {
           winner: leaveResult.winnerColor,
           reason: "player_left",
-          result: {
-            winner: leaveResult.winnerColor,
-            reason: "player_left",
-          },
+          result: { winner: leaveResult.winnerColor, reason: "player_left" },
         });
         io.to(leaveResult.opponentSocketId).emit("player:left", {
           message: "Đối thủ đã rời trận.",
@@ -707,14 +645,12 @@ export function registerSocketHandlers(io: SocketIOServer) {
       }
     });
 
-    // 8. DISCONNECT (Device sleep, tab switch, network drop)
     socket.on("disconnect", () => {
       broadcastOnlineCount();
       aiBotManager.cancelFallback(socket.id);
       matchmakingManager.leaveQueue(socket.id);
       const dcResult = roomManager.handleDisconnect(socket.id);
       if (dcResult && dcResult.type === "player_disconnected") {
-        // Notify opponent that player temporarily dropped connection, but match continues!
         io.to(dcResult.opponentSocketId).emit("player:status", {
           color: dcResult.disconnectedColor,
           connected: false,
@@ -725,9 +661,6 @@ export function registerSocketHandlers(io: SocketIOServer) {
   });
 }
 
-/**
- * Attaches Socket.IO to an existing HTTP server (e.g. in Vite plugin).
- */
 export function attachRealtimeServer(httpServer: http.Server): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
@@ -741,9 +674,6 @@ export function attachRealtimeServer(httpServer: http.Server): SocketIOServer {
   return io;
 }
 
-/**
- * Creates a standalone HTTP + Socket.IO server.
- */
 export function createRealtimeServer(options: RealtimeServerOptions = {}) {
   const port = options.port ?? (process.env.PORT ? parseInt(process.env.PORT, 10) : 3001);
   const corsOrigin = options.corsOrigin ?? "*";
@@ -751,23 +681,16 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
   let ioRef: SocketIOServer | null = null;
 
   const httpServer = http.createServer((req, res) => {
-    // API endpoint for live online count
     if (req.url === "/api/online-count") {
       const realCount = ioRef?.sockets?.sockets?.size || 0;
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       });
-      res.end(
-        JSON.stringify({
-          realCount,
-          onlineCount: realCount + 50,
-        }),
-      );
+      res.end(JSON.stringify({ realCount, onlineCount: realCount + 50 }));
       return;
     }
 
-    // Health check endpoint with operator diagnostics & metrics
     if (req.url === "/health" || req.url === "/") {
       const realCount = ioRef?.sockets?.sockets?.size || 0;
       res.writeHead(200, {
@@ -814,16 +737,12 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
     io,
     start: () =>
       new Promise<void>((resolve, reject) => {
-        httpServer.listen(port, "0.0.0.0", () => {
-          resolve();
-        });
+        httpServer.listen(port, "0.0.0.0", () => resolve());
         httpServer.on("error", reject);
       }),
     stop: () =>
       new Promise<void>((resolve) => {
-        io.close(() => {
-          resolve();
-        });
+        io.close(() => resolve());
       }),
   };
 }

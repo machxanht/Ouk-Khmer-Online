@@ -1,0 +1,45 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - online-multiplayer
+      - security-hardening-auth-ranked
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Core engine tests
+        run: npm test
+
+      - name: Auth security regression tests
+        env:
+          NODE_ENV: test
+          ALLOW_DEV_AUTH_TOKENS: "true"
+        run: npm run test:auth
+
+      - name: Asset integrity
+        run: npm run check:assets
+
+      - name: Production build
+        run: npm run build

@@ -1,34 +1,66 @@
 # Khmer Ouk Chaktrang (អុកចត្រង្គ) — Welcome Portal & Engine
 
-A production-grade Cambodian Khmer Chess (_Ouk Chatrang_ / _Ouk Chaktrang_) application featuring authentic Folk & International tournament rules, multi-tier minimax AI engine, traditional Pinpeat audio synthesis, and rich Khmer Angkor cultural design.
+A Cambodian Khmer Chess (_Ouk Chatrang_ / _Ouk Chaktrang_) application featuring Folk and International rules, offline AI, real-time online multiplayer, traditional audio, and Khmer Angkor-inspired design.
 
 ## Features & Visual Identity
 
-- **Cinematic Splash Screen**:
-  - Blends the iconic `angkor-hero.jpg` monument with dual-gradient atmospheric shading and Angkor temple grain.
-  - Accelerated 8.0s rotating sacred Khmer `LotusMandala` (320px) in Royal Gold.
-  - Transparent centerpiece mascot (`mascot.png`) and traditional Khmer typography (**អុកចត្រង្គ** / **OUK CHATRANG**).
-  - **Dynamic Theme Inversion**: Day Mode triggers a midnight Obsidian Stone splash; Night Mode triggers a golden Lotus Cream sunrise splash.
-  - Replay button available directly in Settings.
-- **Authentic Rules & AI Engine**:
+- **Cinematic Splash Screen**
+  - Angkor-inspired artwork, Khmer ornamentation, mascot, and traditional typography.
+  - Day/night-aware presentation and replay support from Settings.
+- **Authentic Rules & AI Engine**
   - Folk Rules (King jump, Neang 2-step first move).
   - International Rules (Touch-move, chess clock, tournament scoring).
   - Web Worker minimax AI with alpha-beta pruning.
-  - Full _Viel K'dar_ and _Viel L'koun_ honor counting systems.
-- **Cultural Design System**:
+  - _Viel K'dar_ and _Viel L'koun_ honor counting systems.
+- **Online Multiplayer**
+  - Server-authoritative board, move validation, clocks, AFK handling, draw/resign/rematch, and reconnect sessions.
+  - Firebase-authenticated matchmaking and private rooms.
+  - Human-vs-human ranked results are designed to be persisted authoritatively by the backend; bot fallback matches are unranked.
+- **Cultural Design System**
   - Ada Gold & Obsidian, Ada Red, and Traditional Cambodian SVG piece sets.
-  - Traditional Khmer BGM tracks (_Angkor Dawn_, _Royal Khmer_, _Temple Garden_, _Ouk Chaktrang_).
-  - Multi-language support: Khmer (`km`), English (`en`), Vietnamese (`vi`), French (`fr`).
+  - Traditional Khmer BGM tracks.
+  - Multi-language support including Khmer, English, Vietnamese, French, Thai, and Chinese where available.
 
 ## Development
 
 ```sh
-# Run tests
-npx tsx reference_ui/src/lib/khmer-chess.test.ts
+npm ci
 
-# Verify binary assets
-python3 scripts/verify_assets.py --strict
+# Core Khmer chess engine tests
+npm test
 
-# Build client SPA
+# Auth/security regression tests
+npm run test:auth
+
+# Verify binary/static assets
+npm run check:assets
+
+# Build client SPA + Socket.IO backend bundle
 npm run build
 ```
+
+## Online Backend Configuration
+
+The Socket.IO backend is stateful and should run on a persistent Node.js service such as Railway rather than a serverless request/response function.
+
+Production authentication verifies Firebase ID tokens cryptographically. Configure the backend project explicitly when needed:
+
+```text
+FIREBASE_PROJECT_ID=project-by-khang
+```
+
+Authoritative Elo/stat and `match_history` persistence requires a Google/Firebase service account with Firestore write access:
+
+```text
+FIREBASE_SERVICE_ACCOUNT_JSON={...service account JSON...}
+```
+
+If the service-account variable is absent, gameplay continues but authoritative ranked persistence is skipped and logged. Never expose this service-account JSON to the frontend or commit it to the repository.
+
+## Firestore Rules
+
+`firestore.rules` is the repository source of truth for client permissions. Changes to this file are not automatically deployed by the current repository workflows; deploy the rules to the intended Firebase project as part of the production release process.
+
+## Repository Safety
+
+This repository is connected to Lovable. Do not rewrite already-published Git history with force pushes, rebases, amended pushed commits, or squashed pushed history. See `AGENTS.md`.
