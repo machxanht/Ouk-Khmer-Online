@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Apply targeted fixes
@@ -55,6 +55,9 @@ jobs:
         run: npm test
 
       - name: Auth security regression tests
+        env:
+          NODE_ENV: test
+          ALLOW_DEV_AUTH_TOKENS: "true"
         run: npm run test:auth
 
       - name: Asset integrity
