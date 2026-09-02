@@ -41,11 +41,35 @@ const BOT_NAMES = [
   "Mengly Sok",
 ];
 
+const AI_LEVELS = [2, 3, 4] as const;
+type AIFallbackLevel = (typeof AI_LEVELS)[number];
+
+const AI_RATING_RANGES: Record<AIFallbackLevel, readonly [number, number]> = {
+  2: [1380, 1519],
+  3: [1520, 1669],
+  4: [1670, 1819],
+};
+
+function randomIntInclusive(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function pickFallbackLevel(): AIFallbackLevel {
+  return AI_LEVELS[Math.floor(Math.random() * AI_LEVELS.length)];
+}
+
+function getFallbackLevelFromRating(rating?: number): AIFallbackLevel {
+  if (!rating || rating < AI_RATING_RANGES[3][0]) return 2;
+  if (rating < AI_RATING_RANGES[4][0]) return 3;
+  return 4;
+}
+
 export class AIBotManager {
   private fallbackTimers: Map<string, NodeJS.Timeout> = new Map();
 
   /**
-   * Schedule AI fallback after 6 seconds of waiting in matchmaking.
+   * Schedule AI fallback after a human-looking 10-30 second matchmaking wait.
+   * A real opponent always wins the race because matching cancels this timer.
    */
   public scheduleFallback(
     socket: Socket,
@@ -62,23 +86,22 @@ export class AIBotManager {
   ) {
     this.cancelFallback(socket.id);
 
-    // 5.5 to 6.5s delay
-    const delayMs = 5500 + Math.floor(Math.random() * 1000);
+    const delayMs = randomIntInclusive(10_000, 30_000);
 
     const timer = setTimeout(() => {
       this.fallbackTimers.delete(socket.id);
 
-      // Check if socket is still waiting in queue
+      // A real player may have matched while this timer was pending.
       if (!matchmakingManager.isInQueue(socket.id)) {
         return;
       }
 
-      // Remove from matchmaking queue
       matchmakingManager.leaveQueue(socket.id);
 
-      // Create a random realistic bot
       const randomName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-      const botRating = 1460 + Math.floor(Math.random() * 340);
+      const aiLevel = pickFallbackLevel();
+      const [ratingMin, ratingMax] = AI_RATING_RANGES[aiLevel];
+      const botRating = randomIntInclusive(ratingMin, ratingMax);
       const botSocketId = `bot_${crypto.randomUUID().slice(0, 8)}`;
 
       const realPlayer: MatchmakingPlayer = {
@@ -93,6 +116,8 @@ export class AIBotManager {
         isBot: false,
       };
 
+      // isBot stays server-only. Rating doubles as the persisted internal strength band,
+      // so rematches keep the same AI level without exposing bot metadata to the client.
       const botPlayer: MatchmakingPlayer = {
         socketId: botSocketId,
         name: randomName,
@@ -104,7 +129,6 @@ export class AIBotManager {
         rating: botRating,
       };
 
-      // 50% random color assignment
       const userPlaysWhite = Math.random() > 0.5;
       const p1 = userPlaysWhite ? realPlayer : botPlayer;
       const p2 = userPlaysWhite ? botPlayer : realPlayer;
@@ -122,7 +146,6 @@ export class AIBotManager {
       const userColor: PlayerColor = userPlaysWhite ? "w" : "b";
       const botColor: PlayerColor = userPlaysWhite ? "b" : "w";
 
-      // Start authoritative clock timer for the room
       roomManager.startTurnTimer(room, onRoomTimeout, onTurnSkipped);
 
       serverLogger.info("MATCHMAKING_AI_FALLBACK_PAIRED", {
@@ -131,9 +154,10 @@ export class AIBotManager {
         botName: randomName,
         userColor,
         botColor,
+        details: { aiLevel, botRating, fallbackDelayMs: delayMs },
       });
 
-      // Send game:start to human player
+      // Public payload intentionally looks the same as a normal opponent payload.
       socket.emit("game:start", {
         roomId: room.id,
         sessionToken: userColor === "w" ? room.players.w?.sessionToken : room.players.b?.sessionToken,
@@ -141,7 +165,6 @@ export class AIBotManager {
         opponent: {
           name: randomName,
           photoURL: null,
-          isBot: true,
           rating: botRating,
         },
         board: game.board,
@@ -156,7 +179,6 @@ export class AIBotManager {
         afkEnabled: game.afkEnabled,
       });
 
-      // If Bot is White (plays first), trigger its move
       if (botColor === "w") {
         this.triggerBotMove(room, botColor, io, onRoomTimeout, onTurnSkipped);
       }
@@ -194,7 +216,6 @@ export class AIBotManager {
       return;
     }
 
-    // Clear any prior bot timer on this room
     if (room.botTurnTimer) {
       clearTimeout(room.botTurnTimer);
       room.botTurnTimer = null;
@@ -205,37 +226,39 @@ export class AIBotManager {
       return;
     }
 
-    // Dynamic situation-aware thinking delay:
-    // - If in check: longer deliberate contemplation (2200ms - 3600ms)
-    // - Opening game (< 6 moves): faster intuitive play (1100ms - 1900ms)
-    // - Complex midgame: varied human deliberation (1400ms - 3100ms)
+    // Human-like pacing. Blitz stays responsive, while standard games include occasional
+    // longer pauses so the opponent never fires back at machine speed.
     const isUnderCheck = Boolean(room.gameState.isCheck);
     const moveCount = room.gameState.moveHistory?.length || 0;
+    const isBlitz = room.timeControl?.type === "blitz" || room.timeControl?.initialSeconds === 300;
 
     let thinkDelay: number;
     if (isUnderCheck) {
-      thinkDelay = 2200 + Math.floor(Math.random() * 1400);
+      thinkDelay = randomIntInclusive(2_800, 6_200);
     } else if (moveCount < 6) {
-      thinkDelay = 1100 + Math.floor(Math.random() * 800);
+      thinkDelay = randomIntInclusive(1_400, 3_200);
     } else {
-      thinkDelay = 1400 + Math.floor(Math.random() * 1700);
+      thinkDelay = randomIntInclusive(1_900, 5_200);
+    }
+
+    if (!isBlitz && Math.random() < 0.12) {
+      thinkDelay += randomIntInclusive(800, 2_200);
+    } else if (isBlitz) {
+      thinkDelay = Math.max(900, Math.round(thinkDelay * 0.65));
     }
 
     room.botTurnTimer = setTimeout(() => {
       room.botTurnTimer = null;
 
-      // Re-verify room state
       if (room.status !== "playing" || !room.gameState || room.gameState.turn !== botColor) {
         return;
       }
 
       const ruleset: OukRuleSet = getRuleSet(room.rulesetId);
-      // Strictly AI Level 3 or Level 4 search depth (Level 4 for higher rated bots or tactical deep spots)
-      const aiDepth = (botPlayer.rating && botPlayer.rating >= 1620) ? 4 : 3;
+      const aiDepth = getFallbackLevelFromRating(botPlayer.rating);
       const computedMove = bestMove(room.gameState.board, botColor, aiDepth, ruleset);
 
       if (!computedMove) {
-        // No legal moves - check if stalemate or checkmate
         return;
       }
 
@@ -253,10 +276,8 @@ export class AIBotManager {
         return;
       }
 
-      // Broadcast move to player
       io.to(room.id).emit("game:moved", moveResult.movedPayload);
 
-      // Check if game ended
       if (moveResult.room.status === "finished") {
         const game = moveResult.room.gameState!;
         const winner =
@@ -282,7 +303,6 @@ export class AIBotManager {
           result: game.result,
         });
       } else {
-        // Continue match: Schedule turn clock timer
         roomManager.startTurnTimer(moveResult.room, onRoomTimeout, onTurnSkipped);
       }
     }, thinkDelay);
@@ -299,7 +319,6 @@ export class AIBotManager {
     setTimeout(() => {
       if (room.status !== "playing" || !room.gameState) return;
 
-      // 70% chance bot accepts draw if pieces are roughly equal
       const shouldAccept = Math.random() < 0.7;
       if (shouldAccept) {
         room.status = "finished";
@@ -340,7 +359,6 @@ export class AIBotManager {
     }
 
     setTimeout(() => {
-      // Swap colors for rematch
       const oldW = room.players.w;
       const oldB = room.players.b;
       if (!oldW || !oldB) return;
@@ -370,7 +388,6 @@ export class AIBotManager {
           opponent: {
             name: botPlayer.name,
             photoURL: null,
-            isBot: true,
             rating: botPlayer.rating,
           },
           board: game.board,
@@ -386,11 +403,10 @@ export class AIBotManager {
         });
       }
 
-      // If Bot is White in rematch, trigger its move
       if (botPlayer.color === "w") {
         this.triggerBotMove(room, "w", io, onRoomTimeout, onTurnSkipped);
       }
-    }, 1200);
+    }, randomIntInclusive(900, 1_800));
   }
 }
 
