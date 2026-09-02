@@ -20,13 +20,15 @@ service cloud.firestore {
     }
 
     function rankedStatsUnchanged() {
-      return request.resource.data.rating == resource.data.rating
-        && request.resource.data.peakRating == resource.data.peakRating
-        && request.resource.data.wins == resource.data.wins
-        && request.resource.data.losses == resource.data.losses
-        && request.resource.data.draws == resource.data.draws
-        && request.resource.data.winStreak == resource.data.winStreak
-        && request.resource.data.gamesPlayed == resource.data.gamesPlayed;
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'rating',
+        'peakRating',
+        'wins',
+        'losses',
+        'draws',
+        'winStreak',
+        'gamesPlayed'
+      ]);
     }
 
     // Compatibility note: leaderboard currently reads this collection publicly.
