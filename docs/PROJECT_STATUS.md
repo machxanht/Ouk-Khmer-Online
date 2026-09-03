@@ -76,12 +76,13 @@ Merge commit: `3b15227109b9be37c2d47bdccf5289a86b23a8ca`
 
 - Phone game arena no longer stretches player bars far away from the board because of full-height `justify-between` layout.
 - Responsive override uses compact mobile flow and safe-area-aware spacing.
-- Khmer `អុក` uses Moul regular treatment consistently across Vietnamese UI, mobile and tablet; synthetic bold is disabled and size is fluid.
 - Production Socket.IO CORS no longer silently falls back to wildcard when `CORS_ORIGIN` is missing.
 - Rate limits were added to matchmaking/private-room/move/chat traffic.
 - Matchmaking blocks two sockets authenticated as the same Firebase UID from pairing together.
 - Ranked persistence has a second same-UID guard so Elo/history cannot be manufactured by one account.
 - `npm run test:security` was added to CI.
+
+Note: PR #12 originally standardized the Khmer `អុក` treatment on Moul regular. That typography decision was superseded by PR #17 below; current display typography is Koulen, not Moul.
 
 ### PR #13 — log redaction + control-event throttling
 Merge commit: `b83406f87ff71800318b042ef04c3856c13dade6`
@@ -111,10 +112,26 @@ Merge commit: `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3`
 - `/health` and backend `/` now expose basic liveness only: `status` and `timestamp`.
 - Internal room count, active PIN count, socket mappings, queue size, buffered log count, real online count, backend label and uptime are no longer public through health.
 - Runtime CI fails if those health metrics reappear.
-- `/api/online-count` is intentionally unchanged and still supports the product behavior real count + 50.
+- Backend `/api/online-count` remains the source for the intentional real-count + 50 behavior.
 - Existing IconKitchen launcher artwork was republished under versioned `20260904` filenames.
 - `manifest.json` and HTML launcher/touch-icon references now use the versioned URLs to defeat stale Android/iOS/PWA launcher caching.
 - Manifest now has explicit stable `id` and `scope` of `/`.
+
+### PR #17 — Khmer display typography + primary-domain online-count proxy
+Merge commit: `de52e5e252ef6aeb8e8e2d7877783ddd4ff1db01`
+
+- Large Khmer `អុក` and existing prominent Khmer display classes now use `Koulen`, not Moul.
+- Koulen is loaded from Google Fonts and used at its native regular face (`font-weight: 400`) with `font-synthesis: none`; the strong uppercase-like/display appearance comes from the typeface itself rather than synthetic bold.
+- Mobile and tablet keep deliberately large, consistent display sizing with a smaller short-viewport fit to avoid clipping.
+- Legacy Moul faux-bold declarations were removed from the active display rules so the base stylesheet and late responsive override no longer conflict.
+- Vercel now rewrites `https://ouk.kuonkhmer.com/api/online-count` to `https://ouk-khmer-backend-production.up.railway.app/api/online-count`.
+- PR #17 Quality Gate passed before merge.
+
+Production-report interpretation after PR #17:
+
+- Repository `main` already contains the minimized `/health` response from PR #15 and the backend `/api/online-count` route.
+- If the live Railway `/health` still exposes `server`, `uptime`, room/PIN/socket/queue/log metrics, or if live Railway `/api/online-count` returns 404, Railway is serving a stale backend build and must redeploy current `main`.
+- If the primary-domain `/api/online-count` still returns 404 after Vercel has deployed PR #17, recheck the Vercel deployment/rewrite state; do not re-add duplicate backend routes.
 
 ## Launcher icon state
 
@@ -139,14 +156,16 @@ Merge commit: `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3`
 
 Code-side hardening and automated regression coverage are strong. The remaining work is production acceptance, not another full repository audit.
 
-1. Test responsive game UI on real/representative mobile and tablet viewports.
-2. Verify phone player bars now stay close to the board and tablet layout remains compact.
-3. Verify `អុក` uses the same Moul regular visual treatment on mobile/tablet and remains visible for the intended event duration.
-4. Reinstall/Add to Home Screen on Android/iOS/PWA and verify the current IconKitchen launcher image.
-5. Run production auth smoke on `https://ouk.kuonkhmer.com/`.
-6. Run private room, matchmaking, reconnect, draw/rematch/chat production flows.
-7. Run one real two-account human-vs-human ranked result and verify exactly one ranked update per user plus exactly one `match_history` document.
-8. Confirm an AI fallback match does not alter ranked stats/history.
+1. Recheck production backend deployment: `/health` must be minimal and Railway `/api/online-count` must return JSON.
+2. Recheck `https://ouk.kuonkhmer.com/api/online-count` after the PR #17 Vercel deployment.
+3. Test responsive game UI on real/representative mobile and tablet viewports.
+4. Verify phone player bars now stay close to the board and tablet layout remains compact.
+5. Verify `អុក` and other emphasized Khmer display text use the same large Koulen treatment on mobile/tablet and remain visible for the intended event duration.
+6. Reinstall/Add to Home Screen on Android/iOS/PWA and verify the current IconKitchen launcher image.
+7. Run production auth smoke on `https://ouk.kuonkhmer.com/`.
+8. Run private room, matchmaking, reconnect, draw/rematch/chat production flows.
+9. Run one real two-account human-vs-human ranked result and verify exactly one ranked update per user plus exactly one `match_history` document.
+10. Confirm an AI fallback match does not alter ranked stats/history.
 
 The detailed test procedure is in `docs/PRODUCTION_ACCEPTANCE_TEST.md`.
 
@@ -168,4 +187,4 @@ The following items are NO LONGER open technical debt and should not be re-propo
 
 Use this instruction:
 
-`Read docs/PROJECT_STATUS.md, docs/PROJECT_HANDOFF.md, and docs/PRODUCTION_ACCEPTANCE_TEST.md. Do not re-audit the repository. main is the source of truth and includes PR #15 merge commit 299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3. Continue with production acceptance on https://ouk.kuonkhmer.com/: mobile/tablet visual checks, launcher icon reinstall check, then real two-account ranked persistence. Do not redo completed Railway/Firebase/Vercel/Cloudflare setup.`
+`Read docs/PROJECT_STATUS.md, docs/PROJECT_HANDOFF.md, and docs/PRODUCTION_ACCEPTANCE_TEST.md. Do not re-audit the repository. main is the source of truth and includes PR #17 merge commit de52e5e252ef6aeb8e8e2d7877783ddd4ff1db01. First recheck live Railway /health and /api/online-count plus the primary-domain /api/online-count proxy, then continue mobile/tablet visual checks, launcher icon reinstall check, and real two-account ranked persistence. Current Khmer display typography is Koulen, not Moul. Do not redo completed Firebase/Vercel/Cloudflare setup.`
