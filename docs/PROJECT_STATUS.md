@@ -2,170 +2,144 @@
 
 _Last updated: 2026-09-04 (ICT)_
 
-This is the canonical current-state summary for `machxanht/Ouk-Khmer-Online`. Read this before changing deployment, auth, ranked persistence, online gameplay, responsive arena layout, or launcher/PWA assets.
+Canonical current-state summary for `machxanht/Ouk-Khmer-Online`. Do not re-audit the repository from scratch.
 
-## Repository safety
+## Repository rules
 
 - `main` is the source of truth.
 - Use branch -> tests -> PR -> merge commit.
-- Do not force-push, rebase, amend, or squash published history.
+- No force-push/rebase/amend/squash of published history.
 - Never edit `src/routeTree.gen.ts` manually.
-- Do not re-merge stale historical branches into `main` just because they still exist.
+- Do not restore client-side Elo writes.
+- Preserve online count = real + 50, human-first AI fallback, human-like bot names/ratings, and bot-unranked behavior.
 
-## Production architecture
+## Production map
 
 - Frontend: Vercel project `ouk-khmer-online`.
 - Primary URL: `https://ouk.kuonkhmer.com/`.
-- Stable fallback: `https://ouk-khmer-online.vercel.app/`.
-- DNS: Cloudflare authoritative; `ouk` remains DNS-only and points to the project-specific Vercel CNAME target.
-- Backend: Railway service `ouk-khmer-backend` at `ouk-khmer-backend-production.up.railway.app`.
+- Vercel fallback: `https://ouk-khmer-online.vercel.app/`.
+- DNS: Cloudflare authoritative, `ouk` DNS-only to Vercel project-specific CNAME.
+- Backend: Railway `ouk-khmer-backend-production.up.railway.app`.
 - Firebase project: `project-by-khang`.
-- Firestore database: `ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc`.
-- User reports the custom-domain/Firebase authorized-domain setup is complete; production login still belongs in final acceptance testing.
+- Firestore DB: `ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc`.
 
-Do not ask the user to repeat the completed TenTen/DS/DNS/Vercel/Firebase/Railway setup unless there is new evidence it was removed.
+## Current merged baseline
 
-## Key merged production work
+Main includes all prior security/ranked/domain/media work plus:
 
-### PR #1 — verified auth + server-authoritative ranked
-Merge commit: `d3abd0c366fdbba754a59013459854e408cfc872`
+- PR #12 responsive + security hardening — `3b15227109b9be37c2d47bdccf5289a86b23a8ca`
+- PR #13 recursive log redaction + event throttling — `b83406f87ff71800318b042ef04c3856c13dade6`
+- PR #14 authenticated multiplayer release gate — `ffefdf9930dfc83fdbc6be2feaaa075658148d59`
+- PR #15 health minimization + launcher cache bust — `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3`
+- PR #16 release handoff/docs — `00c53390720aecf89db57ea44782e55d83f48359`
+- PR #17 Khmer display typography + `/api/online-count` Vercel proxy — `de52e5e252ef6aeb8e8e2d7877783ddd4ff1db01`
 
-- Firebase ID tokens are verified server-side.
-- Production rejects development auth tokens.
-- Matchmaking/private-room entry requires verified identity.
-- Reconnect requires a server-issued session token.
-- Client Elo writes were removed.
-- Human-vs-human ranked results are persisted by the backend.
-- Firestore rules prevent clients from editing ranked fields.
-- Bot games remain unranked.
+PR #17 Quality Gate passed engine, auth, server-security, multiplayer-core, authenticated Socket.IO runtime, source assets, production build and built-asset integrity before merge.
 
-### PR #2 — reconnect/PIN hardening
-Merge commit: `5cc442c4d323051316fb272a70fa2ff39c7d61cd`
+## Production black-box report received 2026-09-04
 
-- Private PIN uses `crypto.randomInt`.
-- Reconnect-by-color fallback was removed.
+Verified PASS from the supplied production report:
 
-### PR #3 / #4 — Vercel output + production media routing
-Merge commits: `744ba00e3e783ee526e21ae9cc689f7eb4d2913f`, `0dc7dda933b315f0d189101d6949dcebab10b4ad`
+- `https://ouk.kuonkhmer.com/` served successfully through Vercel.
+- Security headers were present.
+- PWA manifest was valid.
+- All versioned `20260904` launcher assets returned 200.
+- Major image/audio/piece assets returned successfully.
+- Human-first / delayed AI fallback code behavior matched the intended product behavior.
 
-- Vercel output remains `.output/public`.
-- Catch-all rewrite no longer swallows real static assets.
-- Khmer `អុក` check splash became event-based so a fast AI reply does not instantly cancel it.
+### Important backend deployment mismatch
 
-### PR #6 — ranked Firestore database fix
-Merge commit: `a93d8d79d518c8830966992af8132fe8a687a3a6`
+The production report found:
 
-- Ranked backend and frontend target the same named Firestore database.
-- Do not restore `(default)` Firestore REST paths.
+- Railway `/health` still exposed the OLD detailed payload (`uptime`, room/PIN/socket/queue/log metrics).
+- Railway `/api/online-count` returned 404.
 
-### PR #10 — mandatory media integrity in production build
-Merge commit: `f4d2096e7902e18931e1f99aa0e0c58571b535b7`
+This is NOT the state of current `main`.
 
-- `npm run build` fails on corrupt/missing/orphaned required media.
-- Vite asset output remains `/app-assets/` under `.output/public`.
+Current `main/server/index.ts` already contains:
 
-### PR #11 — custom-domain integration
-Merge commit: `6bb564c006db8c99e5f79e7676a2185815d9148e`
+- `/health` -> only `{ status, timestamp }`;
+- `/api/online-count` -> `{ realCount, onlineCount: realCount + 50 }`.
 
-- `https://ouk.kuonkhmer.com/` is the canonical production URL.
-- Capacitor navigation allowlist includes the custom domain while retaining the stable Vercel fallback.
-- Documentation no longer treats TenTen/stale DS as an active blocker.
+Therefore the Railway live service observed by the report is running a stale backend deployment. Do not re-add or rewrite these routes. The required action is to redeploy Railway from current `main` (at least PR #15; preferably current main `de52e5e...`) and then re-test both endpoints.
 
-### PR #12 — responsive + server security hardening
-Merge commit: `3b15227109b9be37c2d47bdccf5289a86b23a8ca`
+PR #17 also adds a Vercel rewrite:
 
-- Phone game arena no longer stretches player bars far away from the board because of full-height `justify-between` layout.
-- Responsive override uses compact mobile flow and safe-area-aware spacing.
-- Khmer `អុក` uses Moul regular treatment consistently across Vietnamese UI, mobile and tablet; synthetic bold is disabled and size is fluid.
-- Production Socket.IO CORS no longer silently falls back to wildcard when `CORS_ORIGIN` is missing.
-- Rate limits were added to matchmaking/private-room/move/chat traffic.
-- Matchmaking blocks two sockets authenticated as the same Firebase UID from pairing together.
-- Ranked persistence has a second same-UID guard so Elo/history cannot be manufactured by one account.
-- `npm run test:security` was added to CI.
+`/api/online-count` -> `https://ouk-khmer-backend-production.up.railway.app/api/online-count`
 
-### PR #13 — log redaction + control-event throttling
-Merge commit: `b83406f87ff71800318b042ef04c3856c13dade6`
+The primary-domain endpoint will only return the desired JSON once Railway is running the current backend route.
 
-- Logger redaction is recursive and covers PINs, auth/session tokens, secrets, credentials, passwords, cookies and keys.
-- Reconnect/draw/rematch/resign/leave events are rate limited in addition to the earlier event set.
+## Khmer typography — current product decision
 
-### PR #14 — authenticated multiplayer release gate
-Merge commit: `ffefdf9930dfc83fdbc6be2feaaa075658148d59`
+The previous Moul-regular acceptance target is obsolete.
 
-Quality Gate now includes:
+Current desired presentation:
 
-- core engine tests;
-- auth security regression tests;
-- server security regression tests;
-- multiplayer core tests;
-- authenticated Socket.IO runtime tests;
-- source asset integrity;
-- production build;
-- built asset integrity.
+- large `អុក` check splash uses **Koulen**;
+- prominent Khmer display text using the existing Khmer display classes also uses **Koulen**;
+- appearance should feel large, strong, uppercase-like/display/calligraphic on mobile and tablet;
+- Khmer has no Latin uppercase/lowercase transformation, so the visual treatment comes from the display typeface and scale;
+- use the native Koulen face (`font-weight: 400`) with `font-synthesis: none`; do not fake a 700 weight;
+- mobile and tablet use the same type treatment with responsive sizing;
+- short mobile landscape may scale down to avoid clipping.
 
-The authenticated runtime suite exercises private room/PIN, move sync, disconnect/reconnect using the server session token, draw, rematch/color swap and immediate human matchmaking.
+PR #17 updated both `src/styles.css` and the later-loaded `src/responsive.css`, so there is no longer a Moul-700 base rule fighting a later override.
 
-### PR #15 — public health minimization + launcher cache bust
-Merge commit: `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3`
+## Responsive state
 
-- `/health` and backend `/` now expose basic liveness only: `status` and `timestamp`.
-- Internal room count, active PIN count, socket mappings, queue size, buffered log count, real online count, backend label and uptime are no longer public through health.
-- Runtime CI fails if those health metrics reappear.
-- `/api/online-count` is intentionally unchanged and still supports the product behavior real count + 50.
-- Existing IconKitchen launcher artwork was republished under versioned `20260904` filenames.
-- `manifest.json` and HTML launcher/touch-icon references now use the versioned URLs to defeat stale Android/iOS/PWA launcher caching.
-- Manifest now has explicit stable `id` and `scope` of `/`.
+PR #12 removed the mobile arena spacing bug caused by `min-h-screen + justify-between + flex growth`.
 
-## Launcher icon state
+Current expectation:
 
-- Canonical source archive exists at repository root: `IconKitchen-Output.zip`.
-- Web/PWA launcher files are in `public/` and PR #15 versioned their URLs without changing the artwork.
-- New PWA/Add-to-Home-Screen installs should fetch the current IconKitchen icon rather than a cached old filename.
-- Existing already-installed shortcuts may need removal/reinstall because OS launchers can retain icon metadata independently of browser cache.
-- IconKitchen Android resources also exist under `android/res`.
-- Do not claim a native APK launcher icon is fully verified until the actual Android build/install pipeline is tested; the tracked repository does not currently present a conventional `android/app/src/main/res` tree as the authoritative native project path.
+- mobile player/opponent bars remain close to the board;
+- tablet stays compact and balanced;
+- safe-area spacing is retained;
+- portrait/landscape should not clip the board or controls.
 
-## Intentional product behavior — do not "fix"
+Representative/real-device visual acceptance is still required.
 
-- displayed online count = real connected count + 50;
-- human matchmaking is preferred before AI fallback;
-- AI fallback waits a randomized roughly 10–30 seconds when no compatible human is available;
-- bots use human-like names and randomized plausible ratings;
-- online opponent payload does not intentionally advertise a visible bot label;
-- bot games do not write ranked Elo/history;
-- Vercel output directory remains `.output/public`.
+## Launcher state
 
-## What remains before calling the release fully verified
+- Source archive: `IconKitchen-Output.zip` at repo root.
+- PWA/icon URLs are versioned with `20260904` to avoid stale launcher/browser cache.
+- GitHub APK workflow creates the Capacitor Android project, extracts the IconKitchen archive, copies launcher resources into `android/app/src/main/res`, and verifies them before Gradle build.
+- On the PR #17 post-merge APK run, `Install Icon Kitchen launcher icons` and `Verify Android launcher icons` both passed.
+- A physical installed APK/PWA is still the final visual confirmation because OS launchers can cache icon metadata.
 
-Code-side hardening and automated regression coverage are strong. The remaining work is production acceptance, not another full repository audit.
+## Security posture already implemented
 
-1. Test responsive game UI on real/representative mobile and tablet viewports.
-2. Verify phone player bars now stay close to the board and tablet layout remains compact.
-3. Verify `អុក` uses the same Moul regular visual treatment on mobile/tablet and remains visible for the intended event duration.
-4. Reinstall/Add to Home Screen on Android/iOS/PWA and verify the current IconKitchen launcher image.
-5. Run production auth smoke on `https://ouk.kuonkhmer.com/`.
-6. Run private room, matchmaking, reconnect, draw/rematch/chat production flows.
-7. Run one real two-account human-vs-human ranked result and verify exactly one ranked update per user plus exactly one `match_history` document.
-8. Confirm an AI fallback match does not alter ranked stats/history.
+Do not reopen without new evidence:
 
-The detailed test procedure is in `docs/PRODUCTION_ACCEPTANCE_TEST.md`.
+- verified Firebase ID-token backend auth;
+- secure PIN RNG;
+- reconnect session token;
+- server-authoritative moves/results/ranked writes;
+- bot games unranked;
+- same-UID self-match protection;
+- production CORS hardening;
+- socket/PIN/control-event rate limits;
+- recursive secret/PIN/token log redaction;
+- health-response regression test;
+- authenticated multiplayer core/runtime release gates.
 
-Do not mark release-ready until the two-account ranked persistence test is actually verified.
+## Remaining release blockers
 
-## Remaining lower-priority technical debt
+1. Redeploy Railway from current `main`, then verify backend `/health` and `/api/online-count`.
+2. After Vercel has deployed PR #17, verify `https://ouk.kuonkhmer.com/api/online-count` proxies successfully.
+3. Visually verify Koulen `អុក` + prominent Khmer display text on mobile/tablet and confirm player-bar spacing.
+4. Run one real two-account human-vs-human production ranked game and verify exactly one stats/rating update per user plus exactly one `match_history` document.
+5. Confirm an AI fallback game does not modify ranked stats/history.
+6. Fresh-install PWA/native APK on a real device when available and confirm current IconKitchen launcher artwork.
 
-These are still real but are not blockers for the current acceptance pass unless production testing exposes them:
+Do not mark `RELEASE READY` until the Railway deployment mismatch and two-account ranked verification are resolved.
 
-- room/matchmaking state is in memory and is lost on backend restart;
-- AI computation can still become CPU-heavy under enough concurrent bot load;
-- public/private profile split is intentionally deferred because leaderboard compatibility still depends on readable `/users` data;
-- package/large-asset hygiene remains imperfect (`package-lock.json`, `bun.lock`, large committed assets/source archive);
-- native Android/APK pipeline and launcher resources still need an explicit build/install verification pass.
+## Lower-priority debt
 
-The following items are NO LONGER open technical debt and should not be re-proposed as unfinished work without new evidence: event-level rate limiting, PIN-attempt throttling, production CORS wildcard fallback, shallow logger sanitization, detailed public `/health` metrics.
+- Room/matchmaking state is in memory and disappears on backend restart.
+- Heavy concurrent bot load may still pressure the Node event loop.
+- Public/private profile split is deferred for leaderboard compatibility.
+- Package/large committed-asset hygiene can be improved later.
 
 ## Fresh-session continuation
 
-Use this instruction:
-
-`Read docs/PROJECT_STATUS.md, docs/PROJECT_HANDOFF.md, and docs/PRODUCTION_ACCEPTANCE_TEST.md. Do not re-audit the repository. main is the source of truth and includes PR #15 merge commit 299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3. Continue with production acceptance on https://ouk.kuonkhmer.com/: mobile/tablet visual checks, launcher icon reinstall check, then real two-account ranked persistence. Do not redo completed Railway/Firebase/Vercel/Cloudflare setup.`
+`Read docs/PROJECT_STATUS.md, docs/PROJECT_HANDOFF.md and docs/PRODUCTION_ACCEPTANCE_TEST.md. main includes PR #17 merge de52e5e252ef6aeb8e8e2d7877783ddd4ff1db01. Do not re-audit. The supplied production report proves Railway is still running a stale backend: redeploy current main, recheck /health and /api/online-count, then finish mobile/tablet Koulen visual acceptance and the real two-account ranked persistence test.`
