@@ -34,7 +34,7 @@ service cloud.firestore {
     // Compatibility note: leaderboard currently reads this collection publicly.
     // Ranked fields are server-authoritative; clients may only maintain profile metadata.
     match /users/{userId} {
-      allow read: if true;
+      allow read: if isOwner(userId);
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
         && validInitialRankedStats();
@@ -55,3 +55,4 @@ service cloud.firestore {
     }
   }
 }
+
