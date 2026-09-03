@@ -692,26 +692,14 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
     }
 
     if (req.url === "/health" || req.url === "/") {
-      const realCount = ioRef?.sockets?.sockets?.size || 0;
       res.writeHead(200, {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store",
       });
       res.end(
         JSON.stringify({
           status: "healthy",
-          server: "ouk-chatrang-authoritative",
-          uptime: process.uptime(),
           timestamp: Date.now(),
-          onlineCount: realCount + 50,
-          realCount,
-          metrics: {
-            activeRooms: roomManager.getRoomCount(),
-            activePins: roomManager.getActivePinCount(),
-            socketMappings: roomManager.getSocketMappingCount(),
-            matchmakingQueue: matchmakingManager.getQueueSize(),
-            bufferedLogs: serverLogger.getLogs().length,
-          },
         }),
       );
       return;
