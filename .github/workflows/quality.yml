@@ -41,6 +41,12 @@ jobs:
       - name: Server security regression tests
         run: npm run test:security
 
+      - name: Multiplayer core regression tests
+        run: npm run test:multiplayer-core
+
+      - name: Multiplayer authenticated runtime tests
+        run: npm run test:multiplayer-runtime
+
       - name: Source asset integrity
         run: npm run check:assets
 

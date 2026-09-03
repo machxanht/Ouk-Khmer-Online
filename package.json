@@ -12,6 +12,8 @@
     "check:assets:dist": "npx tsx scripts/check-assets.ts --require-build",
     "test:auth": "npx tsx scripts/test-auth.ts",
     "test:security": "npx tsx scripts/test-security.ts",
+    "test:multiplayer-core": "npx tsx scripts/test-multiplayer-core.ts",
+    "test:multiplayer-runtime": "npx tsx scripts/test-multiplayer-runtime.ts",
     "test": "npx tsx src/lib/khmer-chess.test.ts",
     "build": "npm run check:assets && vite build && npm run check:assets:dist && esbuild server/start.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:dev": "vite build --mode development",
