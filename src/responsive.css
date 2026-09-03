@@ -1,0 +1,58 @@
+/* Device-specific polish loaded after the main design system.
+ * Keep game logic/layout markup stable while correcting small-screen spacing
+ * and making the Khmer Ouk splash use one authentic type treatment everywhere.
+ */
+
+/* The global Vietnamese font override intentionally targets spans. The Ouk
+ * calligraphy is Khmer content, so give it a more-specific late override to
+ * prevent Be Vietnam Pro from replacing Moul when the UI language is Vietnamese.
+ */
+.khmer-ouk-calligraphy,
+html[lang="vi"] span.khmer-ouk-calligraphy,
+html[lang="vi"] .khmer-ouk-calligraphy {
+  font-family: "Moul", "Noto Serif Khmer", serif !important;
+  font-size: clamp(7rem, 25vw, 10.5rem) !important;
+  font-weight: 400 !important;
+  font-synthesis: none;
+  text-transform: none;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+}
+
+/* Phones have much less spare vertical space than tablets. The online arena
+ * previously combined min-h-screen + justify-between + a flex-growing centered
+ * board section, which stretched the player cards away from the board. Keep the
+ * same compact flow used naturally on tablets instead of distributing free space.
+ */
+@media (max-width: 639px) {
+  #online-match-arena {
+    min-height: 100dvh;
+    justify-content: flex-start !important;
+    gap: 0.35rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  #online-match-arena #chess-board-area,
+  #chess-board-area {
+    flex: 0 0 auto !important;
+    justify-content: flex-start !important;
+    padding-block: 0.125rem !important;
+  }
+
+  #online-match-arena #opponent-card,
+  #online-match-arena #user-card {
+    flex: 0 0 auto;
+    margin-block: 0;
+  }
+}
+
+/* Short phones / landscape: preserve the same typeface and visual weight while
+ * letting the splash fit inside a smaller board without clipping excessively.
+ */
+@media (max-width: 639px) and (max-height: 700px) {
+  .khmer-ouk-calligraphy,
+  html[lang="vi"] span.khmer-ouk-calligraphy,
+  html[lang="vi"] .khmer-ouk-calligraphy {
+    font-size: clamp(6rem, 22vw, 8rem) !important;
+  }
+}
