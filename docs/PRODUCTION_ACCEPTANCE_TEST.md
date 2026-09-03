@@ -5,7 +5,7 @@ Run this against the deployed production site only:
 - Primary URL: `https://ouk.kuonkhmer.com/`
 - Fallback URL for comparison only: `https://ouk-khmer-online.vercel.app/`
 - Current production source of truth: `main`
-- Release-hardening baseline includes merge commit `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3` (PR #15).
+- Current release baseline includes merge commit `de52e5e252ef6aeb8e8e2d7877783ddd4ff1db01` (PR #17).
 
 ## Rules for the tester / Studio AI
 
@@ -36,18 +36,19 @@ For an active game screen verify:
 - Tablet remains compact and balanced; the phone fix must not make tablet spacing worse.
 - Rotate portrait -> landscape -> portrait and confirm layout recovers correctly.
 
-## B. Khmer `អុក` check splash
+## B. Khmer `អុក` check splash and emphasized Khmer display text
 
 Create a real check position in at least one human game and one Play-vs-AI game.
 
 Verify on mobile and tablet:
 
 - Text shown is exactly `អុក`.
-- Typeface is the Khmer Moul treatment, not the Vietnamese/Latin UI font.
-- It is regular visual weight, not synthetic bold.
-- It is not transformed to uppercase or another glyph treatment.
-- Mobile and tablet use the same visual style; only scale should adapt to available space.
-- It is large and readable but does not clip badly on short phones.
+- Typeface is **Koulen**, not Moul and not the Vietnamese/Latin UI font.
+- The visual treatment should feel like a large Khmer display / uppercase-like poster face. Khmer itself has no uppercase/lowercase distinction; the intended effect comes from Koulen's glyph design and large sizing.
+- Font uses the native regular face (`font-weight: 400`) with `font-synthesis: none`; there must be no faux/synthetic bold.
+- Mobile and tablet use the same display style; only scale adapts to available space.
+- `អុក` remains deliberately large on both mobile and tablet, but does not clip badly on short phones/landscape.
+- Existing prominent Khmer display classes used around splash/emphasis also render in Koulen at display size rather than collapsing to small body typography.
 - Splash remains visible for roughly the intended 3-second event even if AI replies quickly.
 
 ## C. Launcher / Add-to-Home-Screen icon
@@ -163,11 +164,15 @@ Test with only one human searching:
 
 ## K. Backend public endpoints
 
-Check production backend behavior:
+PR #15 minimized the backend health response. PR #17 added a primary-domain proxy for online count.
+
+Check the **deployed production backend**, not only repository source:
 
 - `/health` returns HTTP 200 with basic liveness data only: `status` and `timestamp`.
 - `/health` must not expose `activePins`, room counts, socket mappings, matchmaking queue size, buffered log count, real online count, server label, or uptime.
-- `/api/online-count` still functions and the displayed product behavior remains real connected count + 50.
+- `https://ouk-khmer-backend-production.up.railway.app/api/online-count` returns JSON and remains real connected count + 50.
+- `https://ouk.kuonkhmer.com/api/online-count` also returns the same JSON through the Vercel proxy added in PR #17.
+- If `/health` still exposes old metrics or backend `/api/online-count` still returns 404, classify it as a **stale Railway deployment**, because current `main` already contains the corrected server routes.
 
 ## Final report format
 
