@@ -1,241 +1,196 @@
 # Ouk Khmer Online — Project Handoff
 
-This file is the durable handoff for any future ChatGPT/dev session. Read this before changing code.
+_Last updated: 2026-09-04 (ICT)_
 
-## 1. What this project is
+This is the durable handoff for future ChatGPT/dev sessions. Do not start by re-auditing the whole repository.
 
-Ouk Khmer Online is a Khmer chess (Ouk Chatrang / អុកចត្រង្គ) web/app project focused on a stable playable experience for real users.
-
-Core product flows:
-- Play locally / vs AI.
-- Online matchmaking.
-- Private rooms with PIN.
-- Reconnect into active online games.
-- Chess clocks, resign/draw/game-over handling.
-- Firebase authentication, user profile/rating/history.
-- Realtime backend on Railway.
-- Frontend deployment on Vercel.
-- Android/APK workflow exists in the repository.
-
-Primary goal: make the product reliable and release-ready. Do not refactor working gameplay architecture just for cleanliness.
-
-## 2. Product behavior that is intentional — do NOT "fix"
-
-The following are deliberate product choices, not bugs:
-- Online count is displayed as real online users + 50.
-- AI fallback is intentional.
-- Bots use human-like names and randomized ratings.
-
-Do not remove or normalize these unless the product owner explicitly asks.
-
-## 3. Repository rules
+## 1. Project / production map
 
 Repository: `machxanht/Ouk-Khmer-Online`
 
-Important rules from `AGENTS.md`:
-- Repo is connected to Lovable.
-- Do not rewrite published history: no force-push, rebase, amend, or squash of pushed commits.
-- Pushed commits sync back to Lovable.
-- TanStack file-based routing is used.
-- `routeTree.gen.ts` is generated and must not be edited manually.
-
-Preferred change flow: branch -> tests -> PR -> merge commit.
-
-## 4. Architecture / deployment map
-
 Frontend:
-- Vite / React.
-- Build output: `.output/public`.
+- Vite / React / TanStack Router.
 - Vercel project: `ouk-khmer-online`.
-- Primary production domain: `https://ouk.kuonkhmer.com/`.
-- Vercel fallback domain: `https://ouk-khmer-online.vercel.app/`.
+- Build output: `.output/public`.
+- Primary production URL: `https://ouk.kuonkhmer.com/`.
+- Stable fallback: `https://ouk-khmer-online.vercel.app/`.
 
-Realtime backend:
+Backend:
 - Railway service: `ouk-khmer-backend`.
-- Production URL: `ouk-khmer-backend-production.up.railway.app`.
+- Host: `ouk-khmer-backend-production.up.railway.app`.
+- Socket.IO authoritative multiplayer server.
 
 Firebase:
-- Project ID: `project-by-khang`.
-- Firestore uses a named database, not `(default)`.
-- Database ID currently used by both frontend and ranked backend code: `ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc`.
-- Backend supports override through `FIRESTORE_DATABASE_ID`.
-
-DNS / custom domain:
-- DNS hosting has been migrated away from TenTen to Cloudflare.
-- Cloudflare is authoritative for `kuonkhmer.com`.
-- `ouk.kuonkhmer.com` is a DNS-only CNAME to the project-specific CNAME target currently recommended by Vercel.
-- The previous generic/legacy `cname.vercel-dns.com` target was replaced after Vercel displayed `DNS Change Recommended`.
-- Vercel Domains subsequently showed the custom domain green/valid.
-- The previous stale DS / TenTen DNSSEC blocker is resolved and must not be treated as an active issue.
-- Do not turn Cloudflare proxying on for `ouk` unless there is a deliberate future architecture change; keep it DNS-only for direct Vercel domain validation/routing.
-
-## 5. Completed work
-
-### PR #1 — security hardening / ranked authority
-Merged to main with merge commit `d3abd0c366fdbba754a59013459854e408cfc872`.
-
-Completed:
-- Cryptographic Firebase JWT verification on backend.
-- Dev auth tokens blocked in production unless explicitly allowed.
-- Verified auth required for matchmaking/private-room entry.
-- Identity bound to verified claims.
-- Reconnect requires session token.
-- Server-authoritative Elo/stat persistence.
-- Immutable `match_history` writes from backend.
-- Firestore rules prevent clients from editing ranked fields.
-- Quality workflow added.
-- Auth tests added.
-
-Do not restore client-authoritative Elo writes.
-
-### PR #2 — reconnect / PIN follow-up
-Merged with merge commit `5cc442c4d323051316fb272a70fa2ff39c7d61cd`.
-
-Completed:
-- Private-room PIN generation moved from `Math.random` to `crypto.randomInt`.
-- Reconnect no longer accepts color fallback.
-- Invalid session token path is explicit.
-
-### PR #3 — Vercel build output
-Merged with merge commit `744ba00e3e783ee526e21ae9cc689f7eb4d2913f`.
-
-Completed:
-- Vercel `outputDirectory` fixed to `.output/public`.
-- Production 404 from wrong output directory was resolved.
-
-Do not revert output directory to `dist`.
-
-### PR #4 — production assets + AI check splash
-Merged with merge commit `0dc7dda933b315f0d189101d6949dcebab10b4ad`.
-
-Completed in code:
-- Removed catch-all SPA rewrite that intercepted real build assets.
-- Replaced it with explicit route rewrites.
-- Added event-based splash trigger for the large Khmer `អុក` / CHECK animation.
-- AI/local flow now increments a splash event when a move results in check, so a fast AI reply should not instantly cancel the 3-second splash.
-
-Production build was READY and emitted built assets including mascot/image/audio bundles.
-
-### PR #5 — handoff/status refresh
-Merged to main. It refreshed `docs/PROJECT_STATUS.md` and linked status documentation from README.
-
-### PR #10 — media integrity enforced by production build
-Merged to main with merge commit `f4d2096e7902e18931e1f99aa0e0c58571b535b7`.
-
-Completed:
-- `npm run build` validates source media before Vite runs.
-- The production build validates emitted media and bundle references after Vite output is generated.
-- Corrupt/missing mascot, image, or audio assets now fail the build instead of silently reaching production.
-
-## 6. Production configuration already done — do NOT ask the user to repeat it
-
-Railway:
-- `FIREBASE_SERVICE_ACCOUNT_JSON` was configured with the downloaded Firebase service-account JSON.
-- Backend was redeployed successfully and became ACTIVE.
-
-Firestore:
-- Hardened rules were manually published.
-- User does not need to paste/publish them again unless code changes require a new rules change.
-
-Vercel:
-- Project is linked to the correct GitHub repo.
-- Vite framework configured.
-- `.output/public` is the correct output directory.
-- Production deployments after the Vercel fix reached READY.
-- `ouk.kuonkhmer.com` is attached to Production and now validates successfully.
+- Project: `project-by-khang`.
+- Named Firestore database: `ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc`.
+- User reports the custom-domain/Auth authorized-domain setup is complete; production acceptance must still confirm sign-in works on the custom domain.
 
 DNS:
-- Cloudflare is now the authoritative DNS provider for `kuonkhmer.com`.
-- `ouk` uses the current project-specific Vercel CNAME target and remains DNS-only.
-- The old TenTen stale-DS / certificate blocker is resolved.
+- Cloudflare is authoritative for `kuonkhmer.com`.
+- `ouk` is DNS-only and points to Vercel's project-specific CNAME target.
+- TenTen stale-DS/DNSSEC history is resolved and is not an active blocker.
 
-## 7. Latest verification state
+## 2. Repository rules
 
-Firestore database mismatch concern:
-- RESOLVED in code.
-- Frontend and `server/ranked-manager.ts` use the same named Firestore database ID: `ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc`.
-- Backend can override with `FIRESTORE_DATABASE_ID`.
+- `main` is the source of truth.
+- Preferred flow: branch -> tests -> PR -> merge commit.
+- No force push, rebase, amend, or squash of published history.
+- `src/routeTree.gen.ts` is generated; never edit it manually.
+- Do not restore client-side Elo writes.
+- Do not change Vercel output away from `.output/public`.
+- Do not remove real-online-count + 50, human-first AI fallback, human-like bot names/ratings, or bot-unranked behavior unless explicitly requested.
 
-Production assets:
-- Source and built media integrity are now enforced by the production build.
-- Vite emits frontend media under the dedicated `/app-assets/` directory to avoid the old `/assets/` cache/routing path.
-- A real browser/device smoke test is still useful for visual confirmation, but broken/corrupt media should now fail CI/build before deployment.
+Historical branches such as `online-multiplayer` may remain for history; do not merge them back into `main` without unique required commits.
 
-AI check animation:
-- Code path has been fixed and build/tests passed.
-- Still needs practical UI verification by making the human give check to the AI and confirming the large `អុក` splash remains visible for the intended duration even if AI replies quickly.
+## 3. Current merged baseline
+
+Important merged PRs and merge commits:
+
+- PR #1 verified auth / ranked authority: `d3abd0c366fdbba754a59013459854e408cfc872`
+- PR #2 reconnect / secure PIN: `5cc442c4d323051316fb272a70fa2ff39c7d61cd`
+- PR #3 Vercel output: `744ba00e3e783ee526e21ae9cc689f7eb4d2913f`
+- PR #4 production assets + AI `អុក` trigger: `0dc7dda933b315f0d189101d6949dcebab10b4ad`
+- PR #6 named Firestore database for ranked writes: `a93d8d79d518c8830966992af8132fe8a687a3a6`
+- PR #10 production media integrity: `f4d2096e7902e18931e1f99aa0e0c58571b535b7`
+- PR #11 custom-domain integration: `6bb564c006db8c99e5f79e7676a2185815d9148e`
+- PR #12 responsive + security hardening: `3b15227109b9be37c2d47bdccf5289a86b23a8ca`
+- PR #13 recursive log redaction + control-event throttling: `b83406f87ff71800318b042ef04c3856c13dade6`
+- PR #14 authenticated multiplayer release gate: `ffefdf9930dfc83fdbc6be2feaaa075658148d59`
+- PR #15 health minimization + launcher cache bust: `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3`
+
+## 4. Security posture already implemented
+
+Do not reopen these as unfinished work without new evidence:
+
+- Firebase ID-token signature/issuer/audience/time verification.
+- Production rejects dev/test auth tokens.
+- Verified auth required for matchmaking and private-room entry.
+- Reconnect requires a high-entropy server session token.
+- Private PIN generation uses `crypto.randomInt`.
+- Server validates moves, clocks, game result and ranked outcome.
+- Client cannot modify ranked fields through Firestore rules.
+- Bot rooms never write ranked Elo/history.
+- Same Firebase UID cannot match itself through normal matchmaking.
+- Ranked persistence has an additional same-UID guard.
+- Production Socket.IO CORS defaults are explicit; production no longer silently falls back to `*` when env config disappears.
+- Rate limiting covers matchmaking, room create/join, moves, chat, reconnect, draw/rematch, resign and leave controls.
+- Logger sanitization recursively redacts PIN/token/secret/credential/password/cookie/key-like fields.
+- Public `/health` is minimized to `status` + `timestamp`; internal room/socket/PIN/log metrics were removed in PR #15.
+
+## 5. Multiplayer / ranked behavior
+
+Human matchmaking:
+- Human opponent is preferred first.
+- Same Firebase UID is not eligible as its own opponent.
+
+AI fallback:
+- Starts only if a compatible human was not matched first.
+- Random wait is roughly 10–30 seconds.
+- Bot levels/ratings remain randomized in plausible bands.
+- Opponent payload intentionally avoids a visible bot flag/label.
+- Bot move timing is delayed to feel non-instant.
+- Bot rooms are intentionally unranked.
 
 Ranked persistence:
-- Server-authoritative implementation exists.
-- Definitive validation still requires a real two-account human-vs-human ranked match and checking rating/stat + `match_history` results.
+- Human-vs-human authoritative result persistence uses the named Firestore database.
+- Updates are serialized and `match_history` creation is guarded against duplicate creation.
+- Code-side behavior is regression-tested.
+- A real two-account production match is still required before saying ranked persistence is fully end-to-end verified.
 
-Custom domain / authentication:
-- Custom domain DNS and Vercel validation are resolved.
-- Firebase client code does not need its `authDomain` changed to `ouk.kuonkhmer.com`; it correctly uses the Firebase project auth domain.
-- External Firebase Authentication console state still needs one check: `ouk.kuonkhmer.com` should be present under Authentication -> Settings -> Authorized domains. If it is missing, Google/Facebook auth from the custom origin may fail with `auth/unauthorized-domain` even though Vercel/DNS are valid.
+## 6. Responsive / UI state
 
-## 8. Priority roadmap
+PR #12 corrected the online-game arena issue where phones could show player bars too far from the board because `min-h-screen + justify-between + flex growth` distributed vertical space.
 
-### P0 — make the shipped product demonstrably correct
-Work these in order without re-auditing the whole repo:
-1. Smoke-test the primary custom domain `https://ouk.kuonkhmer.com/` in a real browser/device.
-2. Verify Firebase Authentication Authorized Domains includes `ouk.kuonkhmer.com`; add it if missing.
-3. Verify the AI check `អុក` animation in a real interaction.
-4. Smoke-test login/auth on the custom production domain.
-5. Smoke-test online matchmaking.
-6. Smoke-test private-room create/join/PIN.
-7. Smoke-test reconnect into an active game.
-8. Run one real two-account human-vs-human ranked game and verify authoritative Elo/stats + `match_history` persistence.
+Current intended behavior:
+- phones use a compact flow with safe-area-aware bottom spacing;
+- player bars stay visually close to the board;
+- tablet remains compact rather than inheriting an over-compressed phone layout;
+- Khmer `អុក` uses Moul regular (`font-weight: 400`, no synthetic bold), consistent across mobile/tablet and Vietnamese UI;
+- `អុក` size is fluid and only shrinks further for short phone viewports;
+- event-based trigger keeps the splash visible even if AI answers quickly.
 
-### P1 — hardening for real users
-Only after P0 is green:
-- Add event-level abuse/rate limiting where useful, especially PIN guessing and spammy socket events.
-- Review CORS and health endpoint exposure.
-- Decide what minimum room-state persistence is needed across backend restarts.
+This still needs real/representative mobile + tablet production visual acceptance.
 
-Do not overengineer distributed persistence unless actual usage requires it.
+## 7. Launcher icon state
 
-### P2 — UX / performance
-- Check mobile layouts and loading/error states.
-- Measure and reduce unnecessary high-frequency rerenders (especially online clock UI) if they are visibly costly.
-- Investigate AI worker/event-loop blocking only if measurable on target devices.
+Canonical source archive in repo root:
 
-### P3 — release readiness
-- Full production smoke test of all major user journeys.
-- Verify Android/APK pipeline and current APK build status.
-- Ensure README/docs match production reality.
-- Mark release-ready only after P0 flows are proven end-to-end.
+`IconKitchen-Output.zip`
 
-## 9. Known lower-priority technical debt
+The IconKitchen artwork was previously copied into web/iOS/Android asset areas, but web/PWA icon URLs were stable filenames and could remain cached by Android/iOS launchers.
 
-- Public/private profile split is deferred; do not claim it is done.
-- Event-level abuse/rate limits are incomplete.
-- In-memory room/matchmaking state is lost on backend restart.
-- Some AI computation may still be CPU-heavy.
-- Health endpoint/CORS/logger sanitization can be tightened.
-- Package/large-asset hygiene remains lower priority.
+PR #15 fixed the web/PWA launcher refresh path by publishing versioned `20260904` files and updating HTML/manifest references:
 
-## 10. Working method for future ChatGPT/dev sessions
+- `/apple-touch-icon-20260904.png`
+- `/icon-192-20260904.png`
+- `/icon-512-20260904.png`
+- `/icon-192-maskable-20260904.png`
+- `/icon-512-maskable-20260904.png`
 
-Do NOT start by auditing the whole repository again.
+The artwork itself was not regenerated or changed; existing IconKitchen binaries were reused under new URLs.
 
-Required loop:
-1. Read this file and `docs/PROJECT_STATUS.md`.
-2. Confirm current main/deployment state only where needed for the next task.
-3. Take the first unfinished P0 item.
-4. Fix it if needed.
-5. Run relevant tests/build.
-6. Use branch -> PR -> merge commit; do not squash/rebase pushed history.
-7. Verify production where applicable.
-8. Update this handoff and `docs/PROJECT_STATUS.md` with what changed, exact PR/commit/deployment IDs, what was verified, and what remains.
-9. Continue automatically to the next unfinished priority item.
+Important testing note:
+- Existing installed PWA/home-screen entries may retain the old OS launcher icon until removed/reinstalled.
+- New Add-to-Home-Screen/PWA installs should use the current IconKitchen icon.
+- `android/res` contains IconKitchen Android resources, but the repository does not currently present a conventional tracked `android/app/src/main/res` tree as an authoritative native project path. Native APK launcher verification therefore remains a separate build/install test.
 
-Only stop to ask the user when:
-- A real product decision is required, or
-- A required account/permission/action cannot be completed with available tools.
+## 8. CI / release gates
 
-Do not make the user repeat Railway/Firebase/Vercel setup that is already recorded here.
+Current Quality Gate checks:
 
-## 11. Recommended prompt for a fresh session
+1. `npm ci`
+2. core engine tests
+3. auth security regression tests
+4. server security regression tests
+5. multiplayer core regression tests
+6. authenticated Socket.IO runtime tests
+7. source asset integrity
+8. production build
+9. built asset integrity
 
-`Read docs/PROJECT_HANDOFF.md and docs/PROJECT_STATUS.md in machxanht/Ouk-Khmer-Online. Continue from the first unfinished P0 item. The primary production domain is https://ouk.kuonkhmer.com/, Cloudflare/Vercel DNS validation is resolved, and the next external check is Firebase Authentication Authorized Domains. Do not re-audit the whole repo or redo completed Railway/Firebase/Vercel setup.`
+Authenticated runtime coverage includes private room/PIN, move synchronization, disconnect/reconnect, draw, rematch/color swap and immediate human matchmaking. PR #15 also makes this runtime suite assert that `/health` does not expose internal metrics.
+
+## 9. Remaining release acceptance — no more full audit
+
+The next work is production testing only unless a failure reveals a code bug.
+
+Use `docs/PRODUCTION_ACCEPTANCE_TEST.md`.
+
+Required release acceptance:
+- mobile/tablet spacing and orientation;
+- Khmer `អុក` consistency on mobile/tablet;
+- launcher icon after fresh PWA/Add-to-Home-Screen install;
+- production auth on custom domain;
+- human matchmaking;
+- private room/PIN;
+- reconnect;
+- draw/rematch/chat;
+- one real two-account ranked result with before/after stats and exactly one `match_history` document;
+- AI fallback remains unranked.
+
+Do not mark release-ready while the two-account ranked persistence test is unverified or failed.
+
+## 10. Remaining lower-priority debt
+
+Still open:
+- in-memory room/matchmaking state disappears on backend restart;
+- AI computation may become CPU-heavy under enough simultaneous bot games;
+- public/private profile split is deferred for leaderboard compatibility;
+- package/large committed asset hygiene can be improved later;
+- native Android/APK build/install pipeline needs an explicit verification pass.
+
+Already resolved and should not be listed as current debt: event rate limiting, PIN-attempt throttling, wildcard production CORS fallback, shallow logger redaction, detailed public health metrics.
+
+## 11. How future sessions should work
+
+1. Read this file, `docs/PROJECT_STATUS.md`, and `docs/PRODUCTION_ACCEPTANCE_TEST.md`.
+2. Do not audit the repository again from scratch.
+3. Test production first.
+4. If a production acceptance test fails, make the smallest targeted fix on a branch.
+5. Run the existing Quality Gate.
+6. Merge with a merge commit.
+7. Update handoff/status only with verified new facts.
+
+Recommended fresh-session prompt:
+
+`Read docs/PROJECT_HANDOFF.md, docs/PROJECT_STATUS.md and docs/PRODUCTION_ACCEPTANCE_TEST.md. main already includes PR #15 merge commit 299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3. Do not re-audit the repository. Continue with production acceptance at https://ouk.kuonkhmer.com/, especially mobile/tablet responsive checks, launcher icon reinstall, then a real two-account ranked persistence test.`
