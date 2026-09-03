@@ -30,7 +30,6 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider, facebookProvider } from "./firebase";
 import { onlineClient } from "./online-client";
-import { calculateElo, type EloUpdateResult } from "./elo";
 
 export type AuthUser = FirebaseUser;
 
@@ -319,79 +318,6 @@ class AuthManager {
       // ignore
     }
     return 1200;
-  }
-
-  public async recordOnlineMatchResult(
-    outcome: "win" | "loss" | "draw",
-    opponentRating: number = 1200,
-  ): Promise<EloUpdateResult> {
-    const currentRating = this.getPlayerRating();
-    const gamesPlayed = this.currentProfile?.gamesPlayed || 0;
-    const score = outcome === "win" ? 1 : outcome === "draw" ? 0.5 : 0;
-    const eloResult = calculateElo(currentRating, opponentRating, score, gamesPlayed);
-
-    const oldWins = this.currentProfile?.wins || 0;
-    const oldLosses = this.currentProfile?.losses || 0;
-    const oldDraws = this.currentProfile?.draws || 0;
-    const oldStreak = this.currentProfile?.winStreak || 0;
-    const oldPeak = this.currentProfile?.peakRating || currentRating;
-
-    const newWins = outcome === "win" ? oldWins + 1 : oldWins;
-    const newLosses = outcome === "loss" ? oldLosses + 1 : oldLosses;
-    const newDraws = outcome === "draw" ? oldDraws + 1 : oldDraws;
-    const newStreak = outcome === "win" ? oldStreak + 1 : outcome === "loss" ? 0 : oldStreak;
-    const newPeak = Math.max(oldPeak, eloResult.newRating);
-    const newGamesPlayed = gamesPlayed + 1;
-
-    try {
-      localStorage.setItem("ouk_player_rating", String(eloResult.newRating));
-      localStorage.setItem(
-        "ouk_player_stats",
-        JSON.stringify({
-          rating: eloResult.newRating,
-          wins: newWins,
-          losses: newLosses,
-          draws: newDraws,
-          winStreak: newStreak,
-          gamesPlayed: newGamesPlayed,
-        }),
-      );
-    } catch {
-      // ignore
-    }
-
-    if (this.currentUser && this.currentProfile) {
-      this.currentProfile = {
-        ...this.currentProfile,
-        rating: eloResult.newRating,
-        peakRating: newPeak,
-        wins: newWins,
-        losses: newLosses,
-        draws: newDraws,
-        winStreak: newStreak,
-        gamesPlayed: newGamesPlayed,
-        updatedAt: Date.now(),
-      };
-      this.notifyListeners();
-
-      try {
-        const userRef = doc(db, "users", this.currentUser.uid);
-        await updateDoc(userRef, {
-          rating: eloResult.newRating,
-          peakRating: newPeak,
-          wins: newWins,
-          losses: newLosses,
-          draws: newDraws,
-          winStreak: newStreak,
-          gamesPlayed: newGamesPlayed,
-          serverUpdatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.warn("Could not sync rating to Firestore:", err);
-      }
-    }
-
-    return eloResult;
   }
 
   public async updatePlayerDisplayName(rawName: string): Promise<UserProfile> {
