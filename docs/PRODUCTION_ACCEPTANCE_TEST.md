@@ -1,68 +1,99 @@
 # Production Acceptance Test — Ouk Khmer Online
 
-Run this against the deployed production site only:
+Target production:
 
-- Primary URL: `https://ouk.kuonkhmer.com/`
-- Fallback URL for comparison only: `https://ouk-khmer-online.vercel.app/`
-- Current production source of truth: `main`
-- Release-hardening baseline includes merge commit `299d6bc59ad2e7db6e70dbef37c35bbf5fb20ce3` (PR #15).
+- `https://ouk.kuonkhmer.com/`
+- Backend: `https://ouk-khmer-backend-production.up.railway.app`
+- Source of truth: `main`
+- Current code baseline: PR #17 merge `de52e5e252ef6aeb8e8e2d7877783ddd4ff1db01`
 
-## Rules for the tester / Studio AI
+## Rules
 
-- This is a TEST-ONLY task.
-- Do not edit code.
-- Do not create branches, commits, PRs, or generated files.
-- Do not change Firebase, Railway, Vercel, Cloudflare, DNS, environment variables, Firestore rules, or authentication settings.
-- Do not use a local preview as the final verdict. The production URL is authoritative for this test.
-- Do not touch `src/routeTree.gen.ts`.
-- If a test requires credentials or a real physical-device action that is unavailable, report it as BLOCKED. Do not fabricate a pass.
-- For every failure, report device/browser, viewport/orientation, exact steps, expected result, actual result, and screenshot/console evidence when available.
+- Production test only unless explicitly assigned a code-fix task.
+- Do not change Firebase/Railway/Vercel/Cloudflare/DNS/env/rules during testing.
+- Do not edit `src/routeTree.gen.ts`.
+- If credentials or a physical-device action are unavailable, mark BLOCKED rather than guessing.
 
-## A. Responsive visual acceptance
+## 1. Backend deployment freshness — FIRST
 
-Test at minimum these classes of devices/viewports:
+A prior black-box report proved Railway was serving an old backend build.
 
-1. Mobile portrait: approximately 360–430 CSS px wide.
-2. Mobile landscape / short viewport.
-3. Tablet portrait: approximately 768–1024 CSS px wide.
-4. Tablet landscape.
-5. Desktop smoke check.
+Check Railway directly:
 
-For an active game screen verify:
+### `/health`
 
-- Opponent/player bars stay visually close to the chessboard on phones; there must not be a large empty vertical gap caused by the arena stretching to full screen height.
-- The chessboard fits without horizontal clipping or unintended page scrolling.
-- Safe-area padding does not hide controls on phones with display cutouts/home indicators.
-- Tablet remains compact and balanced; the phone fix must not make tablet spacing worse.
-- Rotate portrait -> landscape -> portrait and confirm layout recovers correctly.
+Expected HTTP 200 body contains only:
 
-## B. Khmer `អុក` check splash
+- `status`
+- `timestamp`
 
-Create a real check position in at least one human game and one Play-vs-AI game.
+It must NOT expose:
 
-Verify on mobile and tablet:
+- `server`
+- `uptime`
+- `realCount`
+- `onlineCount`
+- `metrics`
+- room/PIN/socket/queue/log counts
 
-- Text shown is exactly `អុក`.
-- Typeface is the Khmer Moul treatment, not the Vietnamese/Latin UI font.
-- It is regular visual weight, not synthetic bold.
-- It is not transformed to uppercase or another glyph treatment.
-- Mobile and tablet use the same visual style; only scale should adapt to available space.
-- It is large and readable but does not clip badly on short phones.
-- Splash remains visible for roughly the intended 3-second event even if AI replies quickly.
+### `/api/online-count`
 
-## C. Launcher / Add-to-Home-Screen icon
+Expected HTTP 200 JSON:
 
-The web/PWA launcher icon was cache-busted in PR #15 using the existing IconKitchen artwork and versioned filenames dated `20260904`.
+- `realCount`
+- `onlineCount`
 
-Check Android Chrome and iOS Safari when available:
+and `onlineCount = realCount + 50`.
 
-- Remove any OLD installed PWA/home-screen shortcut first if the OS keeps the previous icon.
-- Reload the production site.
-- Install/Add to Home Screen again.
-- Confirm the launcher/home-screen icon matches the current IconKitchen artwork in the repository.
-- Confirm the installed app opens `https://ouk.kuonkhmer.com/` and does not create a duplicate/broken app identity.
+If Railway still exposes old health metrics or returns 404 for online-count, report **BLOCKED: stale Railway deployment**. Do not recommend re-implementing the routes: they already exist in current `main`.
 
-Also inspect the production manifest and confirm it references the versioned icon files:
+After Railway is current, check:
+
+`https://ouk.kuonkhmer.com/api/online-count`
+
+PR #17 proxies this path through Vercel to Railway. It should return the same JSON.
+
+## 2. Responsive mobile/tablet visual test
+
+Test at minimum:
+
+- 360x800
+- 390x844
+- 430x932
+- mobile landscape / short height
+- 768x1024
+- 820x1180
+- 1024x1366
+- tablet landscape
+
+During an active online game verify:
+
+- opponent/player bars remain close to the board on phones;
+- no large empty vertical gap caused by full-height stretching;
+- board does not clip horizontally;
+- safe-area/home-indicator spacing does not hide controls;
+- tablet remains compact and balanced;
+- portrait <-> landscape recovers correctly.
+
+## 3. Khmer display typography
+
+Current product requirement supersedes the older Moul target.
+
+For the large check splash and prominent Khmer display text:
+
+- `អុក` must use **Koulen**, not Moul;
+- prominent Khmer display classes should use the same Koulen treatment;
+- visual feel should be large, strong and uppercase-like/display/calligraphic on both mobile and tablet;
+- Khmer has no Latin uppercase/lowercase distinction, so do not judge this by CSS `text-transform`;
+- native Koulen weight is used (`font-weight: 400`);
+- `font-synthesis: none` must prevent fake bold;
+- mobile/tablet should share one style while size responds to viewport;
+- short landscape may reduce size to avoid clipping;
+- the `អុក` event should remain visible for roughly the intended 3 seconds even if AI replies quickly.
+
+## 4. PWA / launcher icon
+
+Black-box production testing already confirmed the versioned assets exist and return 200:
 
 - `/apple-touch-icon-20260904.png`
 - `/icon-192-20260904.png`
@@ -70,60 +101,41 @@ Also inspect the production manifest and confirm it references the versioned ico
 - `/icon-192-maskable-20260904.png`
 - `/icon-512-maskable-20260904.png`
 
-Note: the repository contains IconKitchen Android resources under `android/res`. Native APK launcher-icon verification is a separate build-pipeline check; do not claim the native APK icon is verified solely from the PWA test.
+Physical-device acceptance when available:
 
-## D. Production auth smoke
+- remove an old installed shortcut/PWA;
+- reload production;
+- Add to Home Screen/install again;
+- confirm current IconKitchen artwork appears.
 
-Use two DISTINCT real Firebase accounts (Account A and Account B).
+Native Android CI also installs and verifies IconKitchen launcher resources before Gradle build. A real installed APK remains the final visual confirmation.
 
-Verify on `https://ouk.kuonkhmer.com/`:
+## 5. Production auth
 
-- Both accounts can sign in successfully.
-- Reloading the page preserves a valid session as expected.
-- No `auth/unauthorized-domain` error occurs.
-- User identity/name/avatar is bound to the authenticated account, not freely spoofed client input.
+Use two distinct Firebase accounts when available:
 
-## E. Human matchmaking
+- both can sign in on `https://ouk.kuonkhmer.com/`;
+- no `auth/unauthorized-domain`;
+- reload keeps valid session as expected;
+- identity/name/avatar follow authenticated identity rather than arbitrary spoofed input.
 
-With Account A and Account B on separate browser contexts/devices:
+## 6. Human matchmaking / private room / reconnect
 
-- Enter the same online mode at nearly the same time.
-- Confirm the two humans are matched to each other before AI fallback is used.
-- Confirm both clients receive the same initial board/ruleset/clock state.
-- Make legal moves from both sides and verify synchronized authoritative state.
-- Attempt an illegal/wrong-turn move and confirm it is rejected without desync.
+With two distinct accounts:
 
-## F. Private room / PIN
+- human matchmaking should pair them before AI fallback when both are searching compatibly;
+- legal moves sync;
+- illegal/wrong-turn moves are rejected without desync;
+- private-room PIN is 6 digits;
+- invalid PIN/full room is rejected;
+- disconnect/reconnect restores color, board, turn, clocks and last move;
+- stale socket must not regain control;
+- draw/rematch/chat flows stay synchronized;
+- rapid control spam must not crash the server and may produce `RATE_LIMITED`.
 
-- Account A creates a private room.
-- Confirm a 6-digit PIN is shown.
-- Account B joins with that PIN.
-- Invalid PIN format must be rejected.
-- A third participant must not be able to occupy a full room.
-- Complete at least several moves and confirm state stays synchronized.
+## 7. Real two-account ranked persistence — RELEASE BLOCKER
 
-## G. Reconnect
-
-During an active Account A vs Account B game:
-
-- On one side, disable network / close the tab / simulate app sleep.
-- Confirm the opponent is told the player disconnected, but the game is not instantly forfeited just for a transient disconnect.
-- Reconnect using the normal application flow.
-- Confirm the returning player restores the correct color, board, turn, clocks and last move.
-- Confirm the stale socket cannot continue controlling the player after replacement.
-
-## H. Draw / rematch / chat controls
-
-- Send normal chat messages; verify both clients receive the same text/sender and very long/spam input is not accepted indefinitely.
-- Offer draw, decline once, offer again, then accept; confirm both clients end with the same result.
-- Request rematch from both sides; confirm a fresh board starts and colors swap.
-- Repeated rapid control-event spam should not crash the server; rate limiting may return `RATE_LIMITED`.
-
-## I. Real two-account ranked persistence
-
-This is the key release test.
-
-Use two DISTINCT Firebase UIDs. Record both users' current Firestore ranked fields before the match:
+Record before-match fields for both users:
 
 - `rating`
 - `peakRating`
@@ -133,54 +145,48 @@ Use two DISTINCT Firebase UIDs. Record both users' current Firestore ranked fiel
 - `winStreak`
 - `gamesPlayed`
 
-Play a human-vs-human online game to a definitive result (normal finish or an intentional resignation after the game has clearly started).
+Play one real human-vs-human production game to a definitive result.
 
-Then inspect the named Firestore database:
+Inspect Firestore DB:
 
 `ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc`
 
-Required result:
+Required:
 
-- Winner stats update exactly once.
-- Loser stats update exactly once.
-- Rating deltas are plausible and opposite in direction.
-- `gamesPlayed` increments exactly once for each player.
-- Exactly ONE corresponding `match_history` document exists for that game instance.
-- Refresh/reconnect/repeated game-over delivery must not produce duplicate history or double Elo changes.
+- each user updates exactly once;
+- `gamesPlayed` increments exactly once each;
+- winner/loser/draw counters are correct;
+- rating movement is plausible;
+- exactly ONE matching `match_history` document exists;
+- reconnect/refresh/repeated game-over delivery does not duplicate Elo/history.
 
-Also confirm that two browser sessions using the SAME Firebase account do not get paired into a ranked human match with each other.
+Also confirm two sessions using the SAME Firebase UID do not self-match as a ranked human game.
 
-## J. AI fallback
+## 8. AI fallback
 
-Test with only one human searching:
+With one human only:
 
-- Human matchmaking remains first priority.
-- If no compatible human appears, AI fallback starts after a randomized wait in the intended ~10–30 second range.
-- Bot uses a human-like display name and randomized plausible rating.
-- UI does not expose a visible `bot`/AI label in the online opponent payload.
-- Bot move timing feels non-instant/natural.
-- Bot match must NOT change ranked Elo/stats or create ranked `match_history` as a human match.
+- human-first behavior remains intact;
+- fallback appears after randomized roughly 10–30 seconds;
+- bot name/rating look natural;
+- online UI does not expose an obvious bot label;
+- moves are not instant;
+- bot game does NOT modify ranked stats or create human-ranked `match_history`.
 
-## K. Backend public endpoints
+## Final verdict
 
-Check production backend behavior:
-
-- `/health` returns HTTP 200 with basic liveness data only: `status` and `timestamp`.
-- `/health` must not expose `activePins`, room counts, socket mappings, matchmaking queue size, buffered log count, real online count, server label, or uptime.
-- `/api/online-count` still functions and the displayed product behavior remains real connected count + 50.
-
-## Final report format
-
-Return one concise report with these sections:
+Report:
 
 - PASS
 - FAIL
 - BLOCKED
-- Device matrix tested
-- Ranked before/after values for Account A and Account B
-- `match_history` verification result
-- Launcher icon result on Android/iOS/PWA
-- Screenshots / console errors for failures
-- Final verdict: `RELEASE READY` or `NOT RELEASE READY`
+- device matrix
+- ranked before/after values
+- `match_history` result
+- launcher result if a real device was available
 
-Do not mark `RELEASE READY` while the two-account ranked persistence test is unverified or failed.
+Do not mark `RELEASE READY` until:
+
+1. Railway runs current backend routes;
+2. primary-domain online-count proxy works;
+3. two-account ranked persistence is verified.
