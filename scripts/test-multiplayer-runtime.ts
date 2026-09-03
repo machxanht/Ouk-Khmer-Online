@@ -76,6 +76,24 @@ async function runRuntimeSuite() {
     await server.start();
     testAssert(true, `1. Realtime server started on port ${port}`);
 
+    const healthResponse = await withTimeout(
+      fetch(`http://127.0.0.1:${port}/health`),
+      "health endpoint",
+    );
+    const health = (await healthResponse.json()) as Record<string, unknown>;
+    testAssert(
+      healthResponse.ok && health.status === "healthy" && typeof health.timestamp === "number",
+      "Health endpoint returns only basic liveness data",
+    );
+    testAssert(
+      !("metrics" in health) &&
+        !("realCount" in health) &&
+        !("onlineCount" in health) &&
+        !("server" in health) &&
+        !("uptime" in health),
+      "Health endpoint does not expose internal room/socket/runtime metrics",
+    );
+
     let clientA = makeClient();
     const clientB = makeClient();
     await Promise.all([

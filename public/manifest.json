@@ -2,7 +2,9 @@
   "name": "Ouk Chatrang — Khmer Chess",
   "short_name": "Ouk Chatrang",
   "description": "Cambodian Chess (Ouk Chatrang) Online and Offline",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1A1412",
   "theme_color": "#D4AF37",
@@ -13,28 +15,30 @@
       "sizes": "16x16 32x32"
     },
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/apple-touch-icon-20260904.png",
       "type": "image/png",
       "sizes": "180x180"
     },
     {
-      "src": "/icon-192.png",
+      "src": "/icon-192-20260904.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-512-20260904.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
-      "src": "/icon-192-maskable.png",
+      "src": "/icon-192-maskable-20260904.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "maskable"
     },
     {
-      "src": "/icon-512-maskable.png",
+      "src": "/icon-512-maskable-20260904.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
