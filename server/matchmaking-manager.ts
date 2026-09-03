@@ -54,11 +54,15 @@ export class MatchmakingManager {
       };
     }
 
-    // 2. Look for an existing opponent waiting with the same mode
+    // 2. Look for an existing opponent waiting with the same mode. Two tabs/devices
+    // authenticated as the same Firebase account must never be paired together;
+    // otherwise the account could manufacture a human-vs-human ranked result.
+    const incomingUid = authMeta?.uid;
     const opponentIndex = this.queue.findIndex(
       (p) =>
         (p.mode || (p.rulesetId === "international" ? "international" : "folk")) === mode &&
-        p.socketId !== socketId,
+        p.socketId !== socketId &&
+        (!incomingUid || !p.uid || p.uid !== incomingUid),
     );
 
     if (opponentIndex !== -1) {
