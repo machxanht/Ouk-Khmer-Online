@@ -5,6 +5,7 @@ process.env.NODE_ENV = "test";
 process.env.ALLOW_DEV_AUTH_TOKENS = "true";
 
 const { createRealtimeServer } = await import("../server/index");
+const { roomManager } = await import("../server/room-manager");
 
 let passed = 0;
 let total = 0;
@@ -86,7 +87,6 @@ async function runRuntimeSuite() {
     const aliceToken = "test_token_runtime_alice";
     const bobToken = "test_token_runtime_bob";
 
-    // Private room creation is authenticated and returns reconnect credentials.
     const roomCreated = nextEvent<any>(clientA, "room:created", "private room creation");
     clientA.emit("create:private", {
       playerName: "Alice",
@@ -114,7 +114,6 @@ async function runRuntimeSuite() {
     testAssert(moved.from === 40 && moved.to === 32, "7. Legal move synchronized to opponent");
     testAssert(moved.turn === "b", "8. Authoritative turn toggled to Black");
 
-    // Simulate phone sleep/network loss and a fresh socket reconnect using the server-issued token.
     const reconnectRoomId = gameA.roomId as string;
     const reconnectToken = gameA.sessionToken as string;
     clientA.disconnect();
@@ -158,7 +157,6 @@ async function runRuntimeSuite() {
     testAssert(newGameA.color === "b", "14. Rematch swapped Client A to Black");
     testAssert(newGameB.color === "w", "15. Rematch swapped Client B to White");
 
-    // Authenticated random matchmaking: distinct Firebase UIDs should pair as humans.
     const clientC = makeClient();
     const clientD = makeClient();
     await Promise.all([
@@ -179,8 +177,14 @@ async function runRuntimeSuite() {
       authToken: "test_token_runtime_mm_bob",
     });
     const [mmC, mmD] = await Promise.all([matchC, matchD]);
-    testAssert(mmC.rulesetId === "folk" && mmD.rulesetId === "folk", "16. Authenticated Folk matchmaking paired both users");
-    testAssert(!mmC.opponent?.isBot && !mmD.opponent?.isBot, "17. Immediate human match was preferred over AI fallback");
+    testAssert(
+      mmC.rulesetId === "folk" && mmD.rulesetId === "folk",
+      "16. Authenticated Folk matchmaking paired both users",
+    );
+    testAssert(
+      !mmC.opponent?.isBot && !mmD.opponent?.isBot,
+      "17. Immediate human match was preferred over AI fallback",
+    );
 
     console.log("\n==================================================");
     console.log(`ALL ${passed}/${total} AUTHENTICATED RUNTIME TESTS PASSED!`);
@@ -190,10 +194,14 @@ async function runRuntimeSuite() {
       if (client.connected) client.disconnect();
     }
     await server.stop().catch(() => undefined);
+    roomManager.clear();
   }
 }
 
-runRuntimeSuite().catch((err) => {
-  console.error("Runtime suite error:", err);
-  process.exitCode = 1;
-});
+runRuntimeSuite().then(
+  () => process.exit(0),
+  (err) => {
+    console.error("Runtime suite error:", err);
+    process.exit(1);
+  },
+);
