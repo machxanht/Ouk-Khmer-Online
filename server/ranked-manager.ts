@@ -199,6 +199,13 @@ class RankedManager {
     const white = room.players.w;
     const black = room.players.b;
     if (!white?.uid || !black?.uid) return;
+    if (white.uid === black.uid) {
+      serverLogger.warn("GAME_OVER", {
+        roomId: room.id,
+        details: { rankedSameUidSkipped: true, uid: white.uid },
+      });
+      return;
+    }
 
     const databaseId = this.getFirestoreDatabaseId();
     const token = await this.getAccessToken(account);
@@ -323,6 +330,17 @@ class RankedManager {
   public async finalize(room: Room, winner: Color | "draw", reason: string): Promise<void> {
     if (room.isBotRoom) return;
 
+    const whiteUid = room.players.w?.uid;
+    const blackUid = room.players.b?.uid;
+    if (!whiteUid || !blackUid) return;
+    if (whiteUid === blackUid) {
+      serverLogger.warn("GAME_OVER", {
+        roomId: room.id,
+        details: { rankedSameUidSkipped: true, uid: whiteUid },
+      });
+      return;
+    }
+
     const matchKey = this.getMatchKey(room);
     if (this.finalizedMatchKeys.has(matchKey)) return;
     this.rememberFinalizedMatch(matchKey);
@@ -338,9 +356,7 @@ class RankedManager {
       return;
     }
 
-    const uids = [room.players.w?.uid, room.players.b?.uid].filter(Boolean).sort().join(":");
-    if (!uids) return;
-
+    const uids = [whiteUid, blackUid].sort().join(":");
     const previous = this.locks.get(uids) || Promise.resolve();
     const current = previous
       .catch(() => undefined)
