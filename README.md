@@ -4,6 +4,11 @@ A Cambodian Khmer Chess (_Ouk Chatrang_ / _Ouk Chaktrang_) application featuring
 
 > **Current deployment and handoff state:** read [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) before changing production, auth, ranked persistence, Vercel routing, Firebase, or DNS configuration.
 
+## Production
+
+- Primary web URL: `https://ouk.kuonkhmer.com/`
+- Vercel fallback URL: `https://ouk-khmer-online.vercel.app/`
+
 ## Features & Visual Identity
 
 - **Cinematic Splash Screen**
