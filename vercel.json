@@ -4,6 +4,10 @@
   "outputDirectory": ".output/public",
   "rewrites": [
     {
+      "source": "/api/online-count",
+      "destination": "https://ouk-khmer-backend-production.up.railway.app/api/online-count"
+    },
+    {
       "source": "/home",
       "destination": "/index.html"
     },
