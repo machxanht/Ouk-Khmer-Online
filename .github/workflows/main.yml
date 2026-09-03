@@ -10,18 +10,11 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
-      # ============================================================
-      # 1. CHECKOUT
-      # ============================================================
-
       - name: Checkout
         uses: actions/checkout@v4
-
-      # ============================================================
-      # 2. NODE.JS
-      # ============================================================
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,523 +22,122 @@ jobs:
           node-version: 22
           cache: npm
 
-      # ============================================================
-      # 3. INSTALL DEPENDENCIES
-      # ============================================================
-
       - name: Install dependencies
         run: npm ci
 
-      # ============================================================
-      # 4. BUILD WEB APP
-      # ============================================================
+      - name: Audit high-severity dependencies
+        run: npm audit --audit-level=high
 
       - name: Build web app
         run: npm run build
 
-      # ============================================================
-      # 5. VERIFY WEB OUTPUT
-      # ============================================================
-
       - name: Verify web output
         run: |
-          set -e
+          set -euo pipefail
+          test -f .output/public/index.html
+          npm run check:assets:dist
 
-          echo "========================================"
-          echo "VERIFYING WEB BUILD"
-          echo "========================================"
-
-          test -d ".output/public"
-
-          echo ""
-          echo "=== WEB FILES ==="
-          find ".output/public" -maxdepth 6 -type f -print | head -300
-
-          echo ""
-          echo "=== INDEX.HTML ==="
-
-          if [ -f ".output/public/index.html" ]; then
-            echo "OK: .output/public/index.html"
-          else
-            echo "index.html not found directly in .output/public"
-            echo "Searching..."
-
-            INDEX_FILE="$(find .output -type f -name "index.html" | head -1)"
-
-            if [ -z "$INDEX_FILE" ]; then
-              echo "ERROR: No index.html found."
-              exit 1
-            fi
-
-            echo "Found: $INDEX_FILE"
-
-            cp "$INDEX_FILE" ".output/public/index.html"
-          fi
-
-          echo ""
-          echo "=== AUDIO FILES ==="
-
-          find ".output/public" -type f \
-            \( \
-              -iname "*.mp3" -o \
-              -iname "*.wav" -o \
-              -iname "*.ogg" \
-            \) \
-            -print
-
-          echo ""
-          echo "=== IMAGE FILES ==="
-
-          find ".output/public" -type f \
-            \( \
-              -iname "*.png" -o \
-              -iname "*.jpg" -o \
-              -iname "*.jpeg" -o \
-              -iname "*.svg" \
-            \) \
-            -print | head -200
-
-      # ============================================================
-      # 6. INSTALL CAPACITOR
-      # ============================================================
-
-      - name: Install Capacitor
+      - name: Install Capacitor toolchain
         run: |
-          npm install \
+          npm install --no-save --package-lock=false \
             @capacitor/core@7 \
             @capacitor/cli@7 \
-            @capacitor/android@7 \
-            --save-exact
+            @capacitor/android@7
 
-      # ============================================================
-      # 7. CREATE CAPACITOR CONFIG
-      # ============================================================
-
-      - name: Create Capacitor config
+      - name: Verify Capacitor production config
         run: |
-          cat > capacitor.config.ts <<'EOF'
-          import type { CapacitorConfig } from '@capacitor/cli';
-
-          const config: CapacitorConfig = {
-            appId: 'com.nguyencongthanhfbb.khmerouk',
-            appName: 'Khmer Ouk',
-            webDir: '.output/public',
-            bundledWebRuntime: false,
-            server: {
-              androidScheme: 'https',
-              cleartext: true,
-              allowNavigation: [
-                'ouk-khmer-online.vercel.app',
-                'project-by-khang.firebaseapp.com',
-                'project-by-khang.web.app',
-                '*.firebaseapp.com',
-                '*.googleapis.com',
-                '*.google.com',
-                '*.facebook.com',
-                '*.fbcdn.net'
-              ]
-            }
-          };
-
-          export default config;
-          EOF
-
-          echo "=== capacitor.config.ts ==="
-          cat capacitor.config.ts
-
-      # ============================================================
-      # 8. CREATE ANDROID PROJECT
-      # ============================================================
-
-      - name: Add Android project
-        run: |
-          set -e
-
-          if [ -d "android/app" ]; then
-            echo "Android project already exists."
-          else
-            if [ -d "android" ]; then
-              echo "Backing up root android resource files..."
-              mkdir -p /tmp/android_backup
-              cp -r android/* /tmp/android_backup/ 2>/dev/null || true
-              rm -rf android
-            fi
-            npx cap add android
-            if [ -d "/tmp/android_backup" ]; then
-              cp -r /tmp/android_backup/* android/ 2>/dev/null || true
-            fi
+          set -euo pipefail
+          test -f capacitor.config.ts
+          grep -q "ouk.kuonkhmer.com" capacitor.config.ts
+          grep -q "androidScheme: 'https'" capacitor.config.ts
+          if grep -q "cleartext: true" capacitor.config.ts; then
+            echo "ERROR: Capacitor cleartext traffic must be disabled."
+            exit 1
           fi
+          grep -q "cleartext: false" capacitor.config.ts
+          echo "Capacitor production config verified."
 
-      # ============================================================
-      # 9. INSTALL ICON KITCHEN ICONS
-      #
-      # IMPORTANT:
-      # Do NOT copy Icon Kitchen filenames directly into res/.
-      # Android resource filenames must be lowercase.
-      # ============================================================
+      - name: Create Android project
+        run: |
+          set -euo pipefail
+          if [ ! -d android/app ]; then
+            rm -rf android
+            npx cap add android
+          fi
 
       - name: Install Icon Kitchen launcher icons
         run: |
-          set -e
-
-          echo "========================================"
-          echo "INSTALLING ICON KITCHEN ICONS"
-          echo "========================================"
+          set -euo pipefail
 
           ZIP="IconKitchen-Output.zip"
           RES="android/app/src/main/res"
-
           test -f "$ZIP"
-
-          echo ""
-          echo "ZIP:"
-          ls -lh "$ZIP"
-
-          echo ""
-          echo "=== ZIP CONTENTS ==="
-          unzip -l "$ZIP" | head -300
-
-          echo ""
-          echo "=== EXTRACTING ZIP ==="
+          test -d "$RES"
 
           rm -rf icon-kitchen
           mkdir -p icon-kitchen
-
           unzip -q "$ZIP" -d icon-kitchen
 
-          echo ""
-          echo "=== EXTRACTED FILES ==="
-
-          find icon-kitchen -type f -print | head -300
-
-          echo ""
-          echo "=== FINDING ICON ROOT ==="
-
-          MDPI_DIR="$(find icon-kitchen -type d -name "mipmap-mdpi" -print -quit || true)"
-
-          if [ -z "$MDPI_DIR" ]; then
-            echo "ERROR: mipmap-mdpi was not found inside IconKitchen-Output.zip."
-            exit 1
-          fi
-
+          MDPI_DIR="$(find icon-kitchen -type d -name 'mipmap-mdpi' -print -quit)"
+          test -n "$MDPI_DIR"
           ICON_ROOT="$(dirname "$MDPI_DIR")"
 
-          echo "Icon root:"
-          echo "$ICON_ROOT"
-
-          echo ""
-          echo "=== CLEAN OLD LAUNCHER RESOURCES ==="
-
-          rm -rf "$RES/mipmap-mdpi"
-          rm -rf "$RES/mipmap-hdpi"
-          rm -rf "$RES/mipmap-xhdpi"
-          rm -rf "$RES/mipmap-xxhdpi"
-          rm -rf "$RES/mipmap-xxxhdpi"
-          rm -rf "$RES/mipmap-anydpi"
-          rm -rf "$RES/mipmap-anydpi-v26"
-
-          echo ""
-          echo "=== CREATE CLEAN RESOURCE DIRECTORIES ==="
-
-          mkdir -p "$RES/mipmap-mdpi"
-          mkdir -p "$RES/mipmap-hdpi"
-          mkdir -p "$RES/mipmap-xhdpi"
-          mkdir -p "$RES/mipmap-xxhdpi"
-          mkdir -p "$RES/mipmap-xxxhdpi"
-          mkdir -p "$RES/mipmap-anydpi-v26"
-
-          # --------------------------------------------------------
-          # Find the Icon Kitchen base launcher PNG.
-          #
-          # The ZIP uses:
-          # Icon-logo-android.png
-          #
-          # We copy it directly to the legal Android resource name:
-          # ic_launcher.png
-          # --------------------------------------------------------
-
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-
-            SRC="$ICON_ROOT/mipmap-$density/Icon-logo-android.png"
-            DEST="$RES/mipmap-$density"
-
-            echo ""
-            echo "=== $density ==="
-
-            if [ -f "$SRC" ]; then
-
-              cp "$SRC" "$DEST/ic_launcher.png"
-              cp "$SRC" "$DEST/ic_launcher_round.png"
-
-              echo "Created:"
-              echo "$DEST/ic_launcher.png"
-              echo "$DEST/ic_launcher_round.png"
-
-            else
-
-              echo "WARNING:"
-              echo "Missing $SRC"
-
-            fi
-
-          done
-
-          # --------------------------------------------------------
-          # Copy foreground/background/monochrome ONLY if present.
-          # Never copy Icon Kitchen's uppercase filenames directly.
-          # --------------------------------------------------------
-
-          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-
             SRC_DIR="$ICON_ROOT/mipmap-$density"
             DEST="$RES/mipmap-$density"
-
-            if [ ! -d "$SRC_DIR" ]; then
-              continue
-            fi
+            test -f "$SRC_DIR/Icon-logo-android.png"
+            rm -rf "$DEST"
+            mkdir -p "$DEST"
+            cp "$SRC_DIR/Icon-logo-android.png" "$DEST/ic_launcher.png"
+            cp "$SRC_DIR/Icon-logo-android.png" "$DEST/ic_launcher_round.png"
 
             if [ -f "$SRC_DIR/Icon-logo-android_foreground.png" ]; then
-              cp \
-                "$SRC_DIR/Icon-logo-android_foreground.png" \
-                "$DEST/ic_launcher_foreground.png"
+              cp "$SRC_DIR/Icon-logo-android_foreground.png" "$DEST/ic_launcher_foreground.png"
             fi
-
             if [ -f "$SRC_DIR/Icon-logo-android_background.png" ]; then
-              cp \
-                "$SRC_DIR/Icon-logo-android_background.png" \
-                "$DEST/ic_launcher_background.png"
+              cp "$SRC_DIR/Icon-logo-android_background.png" "$DEST/ic_launcher_background.png"
             fi
-
             if [ -f "$SRC_DIR/Icon-logo-android_monochrome.png" ]; then
-              cp \
-                "$SRC_DIR/Icon-logo-android_monochrome.png" \
-                "$DEST/ic_launcher_monochrome.png"
+              cp "$SRC_DIR/Icon-logo-android_monochrome.png" "$DEST/ic_launcher_monochrome.png"
             fi
-
           done
 
-          # --------------------------------------------------------
-          # Look for Icon Kitchen adaptive icon XML.
-          # We NEVER copy its original XML filename.
-          # --------------------------------------------------------
-
-          ADAPTIVE_XML="$(find "$ICON_ROOT" -type f -name "Icon-logo-android.xml" -print -quit || true)"
-
+          ADAPTIVE_XML="$(find "$ICON_ROOT" -type f -name 'Icon-logo-android.xml' -print -quit || true)"
           if [ -n "$ADAPTIVE_XML" ]; then
-
-            echo ""
-            echo "Found Icon Kitchen adaptive icon:"
-            echo "$ADAPTIVE_XML"
-
+            rm -rf "$RES/mipmap-anydpi-v26"
             mkdir -p "$RES/mipmap-anydpi-v26"
-
-            # Normalize any Icon Kitchen resource references.
-            #
-            # Example:
-            # @mipmap/Icon-logo-android_foreground
-            #
-            # becomes:
-            # @mipmap/ic_launcher_foreground
-
             sed \
               -e 's/Icon-logo-android_foreground/ic_launcher_foreground/g' \
               -e 's/Icon-logo-android_background/ic_launcher_background/g' \
               -e 's/Icon-logo-android_monochrome/ic_launcher_monochrome/g' \
               -e 's/Icon-logo-android/ic_launcher/g' \
-              "$ADAPTIVE_XML" \
-              > "$RES/mipmap-anydpi-v26/ic_launcher.xml"
-
-            cp \
-              "$RES/mipmap-anydpi-v26/ic_launcher.xml" \
-              "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
-
-            echo ""
-            echo "Created:"
-            echo "$RES/mipmap-anydpi-v26/ic_launcher.xml"
-            echo "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
-
-          else
-
-            echo ""
-            echo "No Icon Kitchen adaptive XML found."
-
+              "$ADAPTIVE_XML" > "$RES/mipmap-anydpi-v26/ic_launcher.xml"
+            cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
           fi
 
-          echo ""
-          echo "========================================"
-          echo "FINAL ANDROID ICON FILES"
-          echo "========================================"
-
-          find "$RES" \
-            -type f \
-            \( \
-              -path "*/mipmap-*/*" -o \
-              -path "*/drawable/*" \
-            \) \
-            -print
-
-          echo ""
-          echo "========================================"
-          echo "CHECKING FOR INVALID RESOURCE NAMES"
-          echo "========================================"
-
-          INVALID_FILES="$(
-            find "$RES" -type f \
-              \( \
-                -path "*/mipmap-*/*" -o \
-                -path "*/drawable/*" \
-              \) \
-              -printf '%f\n' \
-              | grep -E '[^a-z0-9_.]' \
-              || true
-          )"
-
+          INVALID_FILES="$(find "$RES" -type f -path '*/mipmap-*/*' -printf '%f\n' | grep -E '[^a-z0-9_.]' || true)"
           if [ -n "$INVALID_FILES" ]; then
-            echo "ERROR: Invalid Android resource filenames found:"
+            echo "ERROR: invalid Android resource filenames:"
             echo "$INVALID_FILES"
             exit 1
           fi
 
-          echo "No invalid Android resource filenames."
-
-      # ============================================================
-      # 10. VERIFY ICONS
-      # ============================================================
-
-      - name: Verify Android launcher icons
-        run: |
-          set -e
-
-          RES="android/app/src/main/res"
-
-          echo "========================================"
-          echo "VERIFYING ANDROID LAUNCHER ICONS"
-          echo "========================================"
-
-          echo ""
-          echo "=== LAUNCHER PNG FILES ==="
-
-          find "$RES" \
-            -type f \
-            -path "*/mipmap-*/*.png" \
-            -print
-
-          echo ""
-          echo "=== RESOURCE FILE COUNT ==="
-
-          COUNT="$(
-            find "$RES" \
-              -type f \
-              -path "*/mipmap-*/*" \
-              | wc -l
-          )"
-
-          echo "Resource files: $COUNT"
-
-          if [ "$COUNT" -eq 0 ]; then
-            echo "ERROR: No launcher resources found."
-            exit 1
-          fi
-
-          echo ""
-          echo "=== STANDARD LAUNCHER CHECK ==="
-
-          FOUND=0
-
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-
-            FILE="$RES/mipmap-$density/ic_launcher.png"
-
-            if [ -f "$FILE" ]; then
-              echo "OK: $FILE"
-              FOUND=$((FOUND + 1))
-            else
-              echo "WARNING: missing $FILE"
-            fi
-
+            test -f "$RES/mipmap-$density/ic_launcher.png"
+            test -f "$RES/mipmap-$density/ic_launcher_round.png"
           done
 
-          if [ "$FOUND" -eq 0 ]; then
-            echo "ERROR: No ic_launcher.png found."
+      - name: Sync web app into Android
+        run: npx cap sync android
+
+      - name: Verify Android WebView security config
+        run: |
+          set -euo pipefail
+          grep -q "ouk.kuonkhmer.com" capacitor.config.ts
+          if grep -R --line-number --include='*.xml' 'usesCleartextTraffic="true"' android/app/src/main 2>/dev/null; then
+            echo "ERROR: generated Android app enables cleartext traffic."
             exit 1
           fi
-
-          echo ""
-          echo "=== ADAPTIVE ICON ==="
-
-          if [ -f "$RES/mipmap-anydpi-v26/ic_launcher.xml" ]; then
-            echo "OK: ic_launcher.xml"
-          else
-            echo "No adaptive icon XML."
-          fi
-
-          echo ""
-          echo "ICON VERIFICATION PASSED."
-
-      # ============================================================
-      # 11. SYNC WEB APP INTO ANDROID
-      # ============================================================
-
-      - name: Sync web app into Android
-        run: |
-          set -e
-
-          echo "========================================"
-          echo "CAPACITOR SYNC"
-          echo "========================================"
-
-          npx cap sync android
-
-      # ============================================================
-      # 12. VERIFY ANDROID WEB ASSETS
-      # ============================================================
-
-      - name: Verify Android web assets
-        run: |
-          set -e
-
-          ASSETS="android/app/src/main/assets"
-
-          echo "========================================"
-          echo "ANDROID WEB ASSETS"
-          echo "========================================"
-
-          test -d "$ASSETS"
-
-          echo ""
-          echo "=== ASSET FILES ==="
-
-          find "$ASSETS" \
-            -maxdepth 7 \
-            -type f \
-            -print | head -300
-
-          echo ""
-          echo "=== AUDIO FILES ==="
-
-          find "$ASSETS" \
-            -type f \
-            \( \
-              -iname "*.mp3" -o \
-              -iname "*.wav" -o \
-              -iname "*.ogg" \
-            \) \
-            -print
-
-          echo ""
-          echo "=== KHMER AUDIO ==="
-
-          find "$ASSETS" \
-            -type f \
-            \( \
-              -iname "*khmer-audio*.mp3" -o \
-              -iname "*khmer-audio*.wav" \
-            \) \
-            -print
-
-      # ============================================================
-      # 13. JAVA
-      # ============================================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -553,33 +145,15 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      # ============================================================
-      # 14. ANDROID SDK
-      # ============================================================
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      # ============================================================
-      # 15. BUILD APK
-      # ============================================================
 
       - name: Build APK
         working-directory: android
         run: |
-          set -e
-
-          echo "========================================"
-          echo "BUILDING DEBUG APK"
-          echo "========================================"
-
+          set -euo pipefail
           chmod +x gradlew
-
           ./gradlew assembleDebug --no-daemon
-
-      # ============================================================
-      # 16. UPLOAD APK
-      # ============================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
