@@ -73,19 +73,45 @@ export class ServerLogger {
     return this.levelWeights[level] >= this.levelWeights[this.minLevel];
   }
 
+  private isSensitiveKey(key: string): boolean {
+    const lower = key.toLowerCase();
+    return (
+      lower.includes("token") ||
+      lower.includes("secret") ||
+      lower.includes("password") ||
+      lower.includes("credential") ||
+      lower.includes("authorization") ||
+      lower.includes("cookie") ||
+      lower.includes("key") ||
+      lower === "pin" ||
+      lower.endsWith("pin")
+    );
+  }
+
+  private sanitizeValue(key: string, value: unknown): unknown {
+    if (this.isSensitiveKey(key)) return "[REDACTED]";
+
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        if (item && typeof item === "object") {
+          return this.sanitizeDetails(item as Record<string, unknown>);
+        }
+        return item;
+      });
+    }
+
+    if (value && typeof value === "object") {
+      return this.sanitizeDetails(value as Record<string, unknown>);
+    }
+
+    return value;
+  }
+
   private sanitizeDetails(details?: Record<string, unknown>): Record<string, unknown> | undefined {
     if (!details) return undefined;
     const sanitized: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(details)) {
-      if (
-        key.toLowerCase().includes("token") ||
-        key.toLowerCase().includes("secret") ||
-        key.toLowerCase().includes("key")
-      ) {
-        sanitized[key] = typeof val === "string" ? `${val.slice(0, 4)}***` : "[REDACTED]";
-      } else {
-        sanitized[key] = val;
-      }
+    for (const [key, value] of Object.entries(details)) {
+      sanitized[key] = this.sanitizeValue(key, value);
     }
     return sanitized;
   }

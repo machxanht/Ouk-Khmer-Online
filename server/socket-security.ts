@@ -88,30 +88,43 @@ export class FixedWindowRateLimiter {
 
 type Packet = [event: string, ...args: unknown[]];
 
-interface EventPolicy {
+export interface EventPolicy {
   limit: number;
   windowMs: number;
-  scope: "socket" | "auth";
+  scope: "socket" | "credential";
   surface: "game" | "room";
 }
 
 const EVENT_POLICIES: Record<string, EventPolicy> = {
-  "matchmaking:join": { limit: 12, windowMs: 30_000, scope: "auth", surface: "game" },
-  "create:private": { limit: 6, windowMs: 60_000, scope: "auth", surface: "room" },
-  "join:private": { limit: 12, windowMs: 60_000, scope: "auth", surface: "room" },
+  "matchmaking:join": { limit: 12, windowMs: 30_000, scope: "credential", surface: "game" },
+  "create:private": { limit: 6, windowMs: 60_000, scope: "credential", surface: "room" },
+  "join:private": { limit: 12, windowMs: 60_000, scope: "credential", surface: "room" },
+  "game:reconnect": { limit: 12, windowMs: 60_000, scope: "credential", surface: "game" },
   "game:move": { limit: 40, windowMs: 10_000, scope: "socket", surface: "game" },
   "chat:send": { limit: 15, windowMs: 10_000, scope: "socket", surface: "game" },
+  "game:draw_offer": { limit: 6, windowMs: 30_000, scope: "socket", surface: "game" },
+  "game:draw_accept": { limit: 8, windowMs: 30_000, scope: "socket", surface: "game" },
+  "game:draw_decline": { limit: 8, windowMs: 30_000, scope: "socket", surface: "game" },
+  "game:rematch_request": { limit: 6, windowMs: 30_000, scope: "socket", surface: "game" },
+  "game:rematch_decline": { limit: 8, windowMs: 30_000, scope: "socket", surface: "game" },
+  "game:resign": { limit: 4, windowMs: 30_000, scope: "socket", surface: "game" },
+  "game:leave": { limit: 8, windowMs: 30_000, scope: "socket", surface: "game" },
 };
+
+export function getEventRatePolicy(event: string): EventPolicy | undefined {
+  return EVENT_POLICIES[event];
+}
 
 function getPayload(packet: Packet): Record<string, unknown> | undefined {
   const payload = packet[1];
   return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : undefined;
 }
 
-function authFingerprint(socket: Socket, packet: Packet): string {
-  const token = getPayload(packet)?.authToken;
-  if (typeof token === "string" && token.trim()) {
-    return crypto.createHash("sha256").update(token).digest("hex").slice(0, 24);
+function credentialFingerprint(socket: Socket, packet: Packet): string {
+  const payload = getPayload(packet);
+  const credential = payload?.authToken ?? payload?.sessionToken;
+  if (typeof credential === "string" && credential.trim()) {
+    return crypto.createHash("sha256").update(credential).digest("hex").slice(0, 24);
   }
   return `socket-${socket.id}`;
 }
@@ -138,7 +151,9 @@ export function installSocketSecurity(io: SocketIOServer) {
       }
 
       const identity =
-        policy.scope === "auth" ? authFingerprint(socket, packet) : `socket-${socket.id}`;
+        policy.scope === "credential"
+          ? credentialFingerprint(socket, packet)
+          : `socket-${socket.id}`;
       const allowed = limiter.hit(`${event}:${identity}`, policy.limit, policy.windowMs);
       if (!allowed) {
         emitRateLimit(socket, policy);
