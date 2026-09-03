@@ -38,6 +38,9 @@ jobs:
           ALLOW_DEV_AUTH_TOKENS: "true"
         run: npm run test:auth
 
+      - name: Server security regression tests
+        run: npm run test:security
+
       - name: Source asset integrity
         run: npm run check:assets
 

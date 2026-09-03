@@ -4,6 +4,7 @@ import { RouterProvider, createHashHistory, createRouter } from "@tanstack/react
 import { QueryClient } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
+import "./responsive.css";
 
 const queryClient = new QueryClient();
 const hashHistory = createHashHistory();
