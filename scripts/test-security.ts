@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
-import { FixedWindowRateLimiter, resolveCorsOrigin } from "../server/socket-security";
+import {
+  FixedWindowRateLimiter,
+  getEventRatePolicy,
+  resolveCorsOrigin,
+} from "../server/socket-security";
 import { MatchmakingManager } from "../server/matchmaking-manager";
+import { ServerLogger } from "../server/logger";
 
 function testCorsDefaults() {
   const production = resolveCorsOrigin(undefined, "production");
@@ -27,6 +32,41 @@ function testRateLimiter() {
   assert.equal(limiter.hit("join:user-a", 2, 1_000, 10_200), false);
   assert.equal(limiter.hit("join:user-a", 2, 1_000, 11_001), true, "window must reset");
   assert.equal(limiter.hit("join:user-b", 2, 1_000, 10_200), true, "keys are isolated");
+
+  for (const event of [
+    "matchmaking:join",
+    "join:private",
+    "game:reconnect",
+    "game:move",
+    "chat:send",
+    "game:draw_offer",
+    "game:rematch_request",
+  ]) {
+    assert.ok(getEventRatePolicy(event), `${event} must have a rate-limit policy`);
+  }
+}
+
+function testLogRedaction() {
+  const logger = new ServerLogger({ enabled: false });
+  const entry = logger.info("TEST_SANITIZE", {
+    details: {
+      pin: "123456",
+      sessionToken: "st_do-not-leak",
+      nested: {
+        apiKey: "secret-key",
+        safe: "visible",
+        deeper: { password: "do-not-leak" },
+      },
+    },
+  });
+
+  assert.equal(entry.details?.pin, "[REDACTED]");
+  assert.equal(entry.details?.sessionToken, "[REDACTED]");
+  const nested = entry.details?.nested as Record<string, unknown>;
+  assert.equal(nested.apiKey, "[REDACTED]");
+  assert.equal(nested.safe, "visible");
+  const deeper = nested.deeper as Record<string, unknown>;
+  assert.equal(deeper.password, "[REDACTED]");
 }
 
 function testMatchmakingCannotSelfMatchByUid() {
@@ -69,6 +109,7 @@ function testMatchmakingCannotSelfMatchByUid() {
 function main() {
   testCorsDefaults();
   testRateLimiter();
+  testLogRedaction();
   testMatchmakingCannotSelfMatchByUid();
   console.log("✓ server security regression tests passed");
 }
