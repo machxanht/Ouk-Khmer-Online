@@ -9,6 +9,7 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     cleartext: true,
     allowNavigation: [
+      'ouk.kuonkhmer.com',
       'ouk-khmer-online.vercel.app',
       'project-by-khang.firebaseapp.com',
       'project-by-khang.web.app',

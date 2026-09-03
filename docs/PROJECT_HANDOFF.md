@@ -47,8 +47,8 @@ Frontend:
 - Vite / React.
 - Build output: `.output/public`.
 - Vercel project: `ouk-khmer-online`.
-- Production domain: `ouk-khmer-online.vercel.app`.
-- Custom domain: `ouk.kuonkhmer.com`.
+- Primary production domain: `https://ouk.kuonkhmer.com/`.
+- Vercel fallback domain: `https://ouk-khmer-online.vercel.app/`.
 
 Realtime backend:
 - Railway service: `ouk-khmer-backend`.
@@ -61,10 +61,13 @@ Firebase:
 - Backend supports override through `FIRESTORE_DATABASE_ID`.
 
 DNS / custom domain:
-- `ouk.kuonkhmer.com` CNAME is already pointed to `cname.vercel-dns.com`.
-- TenTen DNS has a stale/invalid DNSSEC DS delegation problem.
-- Do not change the CNAME as a first response.
-- TenTen must remove stale DS records at the `.com` registry if DNSSEC is not being used.
+- DNS hosting has been migrated away from TenTen to Cloudflare.
+- Cloudflare is authoritative for `kuonkhmer.com`.
+- `ouk.kuonkhmer.com` is a DNS-only CNAME to the project-specific CNAME target currently recommended by Vercel.
+- The previous generic/legacy `cname.vercel-dns.com` target was replaced after Vercel displayed `DNS Change Recommended`.
+- Vercel Domains subsequently showed the custom domain green/valid.
+- The previous stale DS / TenTen DNSSEC blocker is resolved and must not be treated as an active issue.
+- Do not turn Cloudflare proxying on for `ouk` unless there is a deliberate future architecture change; keep it DNS-only for direct Vercel domain validation/routing.
 
 ## 5. Completed work
 
@@ -116,6 +119,14 @@ Production build was READY and emitted built assets including mascot/image/audio
 ### PR #5 — handoff/status refresh
 Merged to main. It refreshed `docs/PROJECT_STATUS.md` and linked status documentation from README.
 
+### PR #10 — media integrity enforced by production build
+Merged to main with merge commit `f4d2096e7902e18931e1f99aa0e0c58571b535b7`.
+
+Completed:
+- `npm run build` validates source media before Vite runs.
+- The production build validates emitted media and bundle references after Vite output is generated.
+- Corrupt/missing mascot, image, or audio assets now fail the build instead of silently reaching production.
+
 ## 6. Production configuration already done — do NOT ask the user to repeat it
 
 Railway:
@@ -131,10 +142,12 @@ Vercel:
 - Vite framework configured.
 - `.output/public` is the correct output directory.
 - Production deployments after the Vercel fix reached READY.
+- `ouk.kuonkhmer.com` is attached to Production and now validates successfully.
 
 DNS:
-- CNAME is already correct.
-- Remaining custom-domain issue is DNSSEC/DS at TenTen/registry level.
+- Cloudflare is now the authoritative DNS provider for `kuonkhmer.com`.
+- `ouk` uses the current project-specific Vercel CNAME target and remains DNS-only.
+- The old TenTen stale-DS / certificate blocker is resolved.
 
 ## 7. Latest verification state
 
@@ -144,11 +157,9 @@ Firestore database mismatch concern:
 - Backend can override with `FIRESTORE_DATABASE_ID`.
 
 Production assets:
-- `/pieces/ada/wK.svg` was successfully fetched from production.
-- Production JS bundle was successfully fetched.
-- A mascot hashed URL test returned 404, but that test used a guessed/stale hash and therefore does NOT prove the current build mascot is broken.
-- Source `src/assets/mascot.png` exists.
-- Next session should first read production `index.html` / current JS bundle to discover the actual emitted mascot asset URL, then fetch that exact URL. Do not guess the hash.
+- Source and built media integrity are now enforced by the production build.
+- Vite emits frontend media under the dedicated `/app-assets/` directory to avoid the old `/assets/` cache/routing path.
+- A real browser/device smoke test is still useful for visual confirmation, but broken/corrupt media should now fail CI/build before deployment.
 
 AI check animation:
 - Code path has been fixed and build/tests passed.
@@ -158,18 +169,23 @@ Ranked persistence:
 - Server-authoritative implementation exists.
 - Definitive validation still requires a real two-account human-vs-human ranked match and checking rating/stat + `match_history` results.
 
+Custom domain / authentication:
+- Custom domain DNS and Vercel validation are resolved.
+- Firebase client code does not need its `authDomain` changed to `ouk.kuonkhmer.com`; it correctly uses the Firebase project auth domain.
+- External Firebase Authentication console state still needs one check: `ouk.kuonkhmer.com` should be present under Authentication -> Settings -> Authorized domains. If it is missing, Google/Facebook auth from the custom origin may fail with `auth/unauthorized-domain` even though Vercel/DNS are valid.
+
 ## 8. Priority roadmap
 
 ### P0 — make the shipped product demonstrably correct
 Work these in order without re-auditing the whole repo:
-1. Verify current production asset URLs using exact hashes from the deployed HTML/JS; fix only if an exact current asset fails.
-2. Verify the AI check `អុក` animation in a real interaction.
-3. Smoke-test login/auth on production.
-4. Smoke-test online matchmaking.
-5. Smoke-test private-room create/join/PIN.
-6. Smoke-test reconnect into an active game.
-7. Run one real two-account human-vs-human ranked game and verify authoritative Elo/stats + `match_history` persistence.
-8. Recheck custom domain after TenTen removes stale DS records.
+1. Smoke-test the primary custom domain `https://ouk.kuonkhmer.com/` in a real browser/device.
+2. Verify Firebase Authentication Authorized Domains includes `ouk.kuonkhmer.com`; add it if missing.
+3. Verify the AI check `អុក` animation in a real interaction.
+4. Smoke-test login/auth on the custom production domain.
+5. Smoke-test online matchmaking.
+6. Smoke-test private-room create/join/PIN.
+7. Smoke-test reconnect into an active game.
+8. Run one real two-account human-vs-human ranked game and verify authoritative Elo/stats + `match_history` persistence.
 
 ### P1 — hardening for real users
 Only after P0 is green:
@@ -222,4 +238,4 @@ Do not make the user repeat Railway/Firebase/Vercel setup that is already record
 
 ## 11. Recommended prompt for a fresh session
 
-`Read docs/PROJECT_HANDOFF.md and docs/PROJECT_STATUS.md in machxanht/Ouk-Khmer-Online. Continue from the first unfinished P0 item. Do not re-audit the whole repo, do not redo completed Railway/Firebase/Vercel setup, and update both handoff docs after each completed work cluster.`
+`Read docs/PROJECT_HANDOFF.md and docs/PROJECT_STATUS.md in machxanht/Ouk-Khmer-Online. Continue from the first unfinished P0 item. The primary production domain is https://ouk.kuonkhmer.com/, Cloudflare/Vercel DNS validation is resolved, and the next external check is Firebase Authentication Authorized Domains. Do not re-audit the whole repo or redo completed Railway/Firebase/Vercel setup.`
