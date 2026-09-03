@@ -320,39 +320,6 @@ class AuthManager {
     return 1200;
   }
 
-    if (this.currentUser && this.currentProfile) {
-      this.currentProfile = {
-        ...this.currentProfile,
-        rating: eloResult.newRating,
-        peakRating: newPeak,
-        wins: newWins,
-        losses: newLosses,
-        draws: newDraws,
-        winStreak: newStreak,
-        gamesPlayed: newGamesPlayed,
-        updatedAt: Date.now(),
-      };
-      this.notifyListeners();
-
-      try {
-        const userRef = doc(db, "users", this.currentUser.uid);
-        await updateDoc(userRef, {
-          rating: eloResult.newRating,
-          peakRating: newPeak,
-          wins: newWins,
-          losses: newLosses,
-          draws: newDraws,
-          winStreak: newStreak,
-          gamesPlayed: newGamesPlayed,
-          serverUpdatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.warn("Could not sync rating to Firestore:", err);
-      }
-    }
-
-    return eloResult;
-  }
 
   public async updatePlayerDisplayName(rawName: string): Promise<UserProfile> {
     const trimmed = rawName.trim();
