@@ -1,20 +1,8 @@
 import { createRealtimeServer } from "./index";
+import { installSocketSecurity, resolveCorsOrigin } from "./socket-security";
 
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-
-// Parse CORS origin from environment or default to wildcard
-let corsOrigin: string | string[] = "*";
-if (process.env.CORS_ORIGIN) {
-  const envCors = process.env.CORS_ORIGIN.trim();
-  if (envCors.includes(",")) {
-    corsOrigin = envCors
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean);
-  } else if (envCors.length > 0) {
-    corsOrigin = envCors;
-  }
-}
+const corsOrigin = resolveCorsOrigin();
 
 console.log(
   `[Socket Server] Initializing on 0.0.0.0:${port} (CORS: ${
@@ -26,6 +14,9 @@ const server = createRealtimeServer({
   port,
   corsOrigin,
 });
+
+// Packet-level abuse controls are installed before the listener starts accepting traffic.
+installSocketSecurity(server.io);
 
 server
   .start()
