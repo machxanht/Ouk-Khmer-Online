@@ -6,12 +6,14 @@
 /* The global Vietnamese font override intentionally targets spans. The Ouk
  * calligraphy is Khmer content, so give it a more-specific late override to
  * prevent Be Vietnam Pro from replacing Moul when the UI language is Vietnamese.
+ * Moul is loaded as its regular face; disabling synthetic bold avoids different
+ * browser/device rendering between phones and tablets.
  */
 .khmer-ouk-calligraphy,
 html[lang="vi"] span.khmer-ouk-calligraphy,
 html[lang="vi"] .khmer-ouk-calligraphy {
   font-family: "Moul", "Noto Serif Khmer", serif !important;
-  font-size: clamp(7rem, 25vw, 10.5rem) !important;
+  font-size: clamp(6rem, 24vw, 11.5rem) !important;
   font-weight: 400 !important;
   font-synthesis: none;
   text-transform: none;
@@ -53,6 +55,6 @@ html[lang="vi"] .khmer-ouk-calligraphy {
   .khmer-ouk-calligraphy,
   html[lang="vi"] span.khmer-ouk-calligraphy,
   html[lang="vi"] .khmer-ouk-calligraphy {
-    font-size: clamp(6rem, 22vw, 8rem) !important;
+    font-size: clamp(5.75rem, 22vw, 8rem) !important;
   }
 }
