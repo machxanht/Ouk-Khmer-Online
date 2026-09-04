@@ -3,6 +3,7 @@ import fs from "node:fs";
 
 const DEFAULT_FIRESTORE_DATABASE_ID =
   "ai-studio-oukkhmeronline-bf9c8f38-eb74-4b5e-bcbd-efb1abfaeebc";
+const DEFAULT_FIREBASE_PROJECT_NUMBER = "499776321836";
 const RULES_API = "https://firebaserules.googleapis.com";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/firebase";
 
@@ -86,6 +87,8 @@ async function main() {
 
   const account = loadServiceAccount();
   const projectId = account.project_id;
+  const projectNumber =
+    process.env.FIREBASE_PROJECT_NUMBER?.trim() || DEFAULT_FIREBASE_PROJECT_NUMBER;
   const databaseId =
     process.env.FIRESTORE_DATABASE_ID?.trim() || DEFAULT_FIRESTORE_DATABASE_ID;
   const source = fs.readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
@@ -95,14 +98,14 @@ async function main() {
   }
 
   const token = await getAccessToken(account);
-  const fingerprint = crypto.createHash("sha256").update(source).digest("base64");
-  const attachmentPoint = `firestore.googleapis.com/databases/${databaseId}`;
+  const attachmentPoint =
+    `firestore.googleapis.com/projects/${projectNumber}/databases/${databaseId}`;
 
   const createRuleset = await rulesRequest(token, `/v1/projects/${projectId}/rulesets`, {
     method: "POST",
     body: JSON.stringify({
       source: {
-        files: [{ name: "firestore.rules", content: source, fingerprint }],
+        files: [{ name: "firestore.rules", content: source }],
       },
       attachment_point: attachmentPoint,
     }),
