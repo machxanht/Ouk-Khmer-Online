@@ -8,6 +8,10 @@
       "destination": "https://ouk-khmer-backend-production.up.railway.app/api/online-count"
     },
     {
+      "source": "/api/leaderboard",
+      "destination": "https://ouk-khmer-backend-production.up.railway.app/api/leaderboard"
+    },
+    {
       "source": "/home",
       "destination": "/index.html"
     },
