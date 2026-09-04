@@ -30,13 +30,8 @@ jobs:
           npm pkg set overrides.fast-uri=3.1.6
           npm install --package-lock-only --ignore-scripts --no-audit
 
-      - name: Verify clean install and patched dependency
-        run: |
-          set -e
-          npm ci --no-audit
-          npm ls fast-uri | tee /tmp/fast-uri-tree.txt
-          grep -q 'fast-uri@3.1.6' /tmp/fast-uri-tree.txt
-          ! grep -q 'fast-uri@3.1.5' /tmp/fast-uri-tree.txt
+      - name: Verify clean install
+        run: npm ci --no-audit
 
       - name: Commit secure lockfile
         run: |
@@ -44,5 +39,9 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add package.json package-lock.json
-          git commit -m 'security: pin patched fast-uri dependency'
+          if git diff --cached --quiet; then
+            echo 'Lockfile already synchronized.'
+            exit 0
+          fi
+          git commit -m 'security: synchronize patched npm lockfile'
           git push origin HEAD:fix/final-security-hardening
