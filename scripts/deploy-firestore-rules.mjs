@@ -55,7 +55,8 @@ async function getAccessToken(account) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.access_token) {
-    throw new Error(`Google OAuth token request failed (${response.status})`);
+    const reason = payload?.error_description || payload?.error || "token request failed";
+    throw new Error(`Google OAuth token request failed (${response.status}): ${reason}`);
   }
   return payload.access_token;
 }
@@ -72,6 +73,10 @@ async function rulesRequest(token, path, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
+}
+
+function apiError(payload, fallback) {
+  return payload?.error?.message || payload?.error_description || fallback;
 }
 
 async function main() {
@@ -91,6 +96,7 @@ async function main() {
 
   const token = await getAccessToken(account);
   const fingerprint = crypto.createHash("sha256").update(source).digest("base64");
+  const attachmentPoint = `firestore.googleapis.com/databases/${databaseId}`;
 
   const createRuleset = await rulesRequest(token, `/v1/projects/${projectId}/rulesets`, {
     method: "POST",
@@ -98,12 +104,17 @@ async function main() {
       source: {
         files: [{ name: "firestore.rules", content: source, fingerprint }],
       },
+      attachment_point: attachmentPoint,
     }),
   });
 
   if (!createRuleset.response.ok || !createRuleset.payload.name) {
-    const reason = createRuleset.payload?.error?.message || "ruleset creation failed";
-    throw new Error(`Firebase Rules API rejected firestore.rules (${createRuleset.response.status}): ${reason}`);
+    throw new Error(
+      `Firebase Rules API rejected firestore.rules (${createRuleset.response.status}): ${apiError(
+        createRuleset.payload,
+        "ruleset creation failed",
+      )}`,
+    );
   }
 
   const rulesetName = createRuleset.payload.name;
@@ -117,26 +128,41 @@ async function main() {
       body: JSON.stringify({ name: releaseName, rulesetName }),
     });
   } else if (currentRelease.response.ok) {
-    releaseResult = await rulesRequest(
-      token,
-      `/v1/${releaseName}?updateMask=rulesetName`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ name: releaseName, rulesetName }),
-      },
-    );
+    releaseResult = await rulesRequest(token, `/v1/${releaseName}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        release: { name: releaseName, rulesetName },
+        updateMask: "rulesetName",
+      }),
+    });
   } else {
-    const reason = currentRelease.payload?.error?.message || "release lookup failed";
-    throw new Error(`Unable to inspect current Firestore rules release (${currentRelease.response.status}): ${reason}`);
+    throw new Error(
+      `Unable to inspect current Firestore rules release (${currentRelease.response.status}): ${apiError(
+        currentRelease.payload,
+        "release lookup failed",
+      )}`,
+    );
   }
 
   if (!releaseResult.response.ok) {
-    const reason = releaseResult.payload?.error?.message || "release update failed";
-    throw new Error(`Unable to publish Firestore rules (${releaseResult.response.status}): ${reason}`);
+    throw new Error(
+      `Unable to publish Firestore rules (${releaseResult.response.status}): ${apiError(
+        releaseResult.payload,
+        "release update failed",
+      )}`,
+    );
   }
 
   const verified = await rulesRequest(token, `/v1/${releaseName}`, { method: "GET" });
-  if (!verified.response.ok || verified.payload.rulesetName !== rulesetName) {
+  if (!verified.response.ok) {
+    throw new Error(
+      `Unable to verify Firestore rules release (${verified.response.status}): ${apiError(
+        verified.payload,
+        "release verification failed",
+      )}`,
+    );
+  }
+  if (verified.payload.rulesetName !== rulesetName) {
     throw new Error("Firestore rules release verification did not match the new ruleset");
   }
 
