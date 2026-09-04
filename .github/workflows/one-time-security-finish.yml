@@ -19,6 +19,9 @@ jobs:
           ref: fix/final-security-hardening
           fetch-depth: 0
 
+      - name: Escape generated template interpolation
+        run: perl -0pi -e 's/\$\{/\\\$\{/g' scripts/one-time-security-finish.mjs
+
       - name: Apply deterministic patch
         run: node scripts/one-time-security-finish.mjs
 
