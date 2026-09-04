@@ -1,0 +1,45 @@
+name: One-time security finish
+
+on:
+  push:
+    branches:
+      - fix/final-security-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/final-security-hardening
+          fetch-depth: 0
+
+      - name: Apply deterministic patch
+        run: node scripts/one-time-security-finish.mjs
+
+      - name: Verify sensitive leaderboard fields stay out
+        run: |
+          set -e
+          grep -q 'allow read: if isOwner(userId);' firestore.rules
+          ! grep -q 'allow read: if true;' firestore.rules
+          grep -q '/api/leaderboard' server/index.ts
+          grep -q '/api/leaderboard' vercel.json
+          ! grep -n 'collection(db, "users")' src/lib/auth-manager.ts
+
+      - name: Commit patch
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server/public-leaderboard.ts server/index.ts src/lib/auth-manager.ts vercel.json scripts/test-security.ts firestore.rules
+          if git diff --cached --quiet; then
+            echo 'No patch changes to commit.'
+            exit 0
+          fi
+          git commit -m 'security: privatize user profiles and proxy leaderboard'
+          git push origin HEAD:fix/final-security-hardening
