@@ -1,0 +1,81 @@
+name: One-time production security smoke
+
+on:
+  push:
+    branches:
+      - ops/firestore-rules-attachment-fix
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify production backend and Firestore privacy
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKEND='https://ouk-khmer-backend-production.up.railway.app'
+          WEB='https://ouk.kuonkhmer.com'
+
+          curl --fail --silent --show-error --retry 3 --max-time 20 "$BACKEND/health" -o /tmp/health.json
+          curl --fail --silent --show-error --retry 3 --max-time 20 "$BACKEND/api/online-count" -o /tmp/online.json
+          curl --fail --silent --show-error --retry 3 --max-time 20 "$BACKEND/api/leaderboard?limit=3" -o /tmp/leaderboard.json
+          curl --fail --silent --show-error --retry 3 --max-time 20 "$WEB/api/leaderboard?limit=3" -o /tmp/web-leaderboard.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const health = JSON.parse(fs.readFileSync('/tmp/health.json', 'utf8'));
+          const online = JSON.parse(fs.readFileSync('/tmp/online.json', 'utf8'));
+          const direct = JSON.parse(fs.readFileSync('/tmp/leaderboard.json', 'utf8'));
+          const proxied = JSON.parse(fs.readFileSync('/tmp/web-leaderboard.json', 'utf8'));
+
+          if (!health || typeof health !== 'object') throw new Error('health response is not JSON');
+          if (!Number.isFinite(online.realCount) || !Number.isFinite(online.onlineCount)) {
+            throw new Error('online count response shape is invalid');
+          }
+          if (online.onlineCount !== online.realCount + 50) {
+            throw new Error('online count +50 contract changed');
+          }
+
+          const allowed = new Set([
+            'uid', 'displayName', 'photoURL', 'rating', 'peakRating',
+            'wins', 'losses', 'draws', 'winStreak', 'gamesPlayed'
+          ]);
+          for (const [label, payload] of [['direct', direct], ['proxied', proxied]]) {
+            if (!Array.isArray(payload.players)) throw new Error(`${label} leaderboard missing players array`);
+            for (const player of payload.players) {
+              for (const key of Object.keys(player)) {
+                if (!allowed.has(key)) throw new Error(`${label} leaderboard leaked unexpected field: ${key}`);
+              }
+              for (const privateKey of ['email', 'emailVerified', 'providerId', 'serverCreatedAt', 'serverUpdatedAt', 'createdAt', 'updatedAt']) {
+                if (Object.prototype.hasOwnProperty.call(player, privateKey)) {
+                  throw new Error(`${label} leaderboard leaked private field: ${privateKey}`);
+                }
+              }
+            }
+          }
+          console.log(`health OK; onlineCount=${online.onlineCount}; directPlayers=${direct.players.length}; proxiedPlayers=${proxied.players.length}`);
+          NODE
+
+          node <<'NODE' >/tmp/firebase.env
+          const cfg = require('./firebase-applet-config.json');
+          console.log(`PROJECT=${cfg.projectId}`);
+          console.log(`DATABASE=${cfg.firestoreDatabaseId}`);
+          console.log(`API_KEY=${cfg.apiKey}`);
+          NODE
+          source /tmp/firebase.env
+
+          FIRESTORE_URL="https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/${DATABASE}/documents/users?pageSize=1&key=${API_KEY}"
+          STATUS=$(curl --silent --show-error --max-time 20 -o /tmp/firestore-denied.json -w '%{http_code}' "$FIRESTORE_URL")
+          if [ "$STATUS" != '403' ]; then
+            echo "Expected unauthenticated /users read to be denied with 403, got HTTP $STATUS"
+            cat /tmp/firestore-denied.json
+            exit 1
+          fi
+          node -e "const p=JSON.parse(require('fs').readFileSync('/tmp/firestore-denied.json','utf8')); if(p.error?.status!=='PERMISSION_DENIED') throw new Error('Firestore denial was not PERMISSION_DENIED'); console.log('Firestore unauthenticated /users read correctly denied');"
