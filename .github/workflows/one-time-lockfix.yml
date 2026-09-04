@@ -34,8 +34,17 @@ jobs:
         run: |
           set -e
           npm ci
-          npm audit --audit-level=high
           npm ls fast-uri
+          ok=0
+          for attempt in 1 2 3; do
+            if npm audit --audit-level=high; then
+              ok=1
+              break
+            fi
+            echo "npm audit attempt $attempt failed; retrying after transient registry error..."
+            sleep 10
+          done
+          test "$ok" -eq 1
 
       - name: Commit secure lockfile
         run: |
