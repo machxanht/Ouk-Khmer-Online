@@ -27,10 +27,21 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit
 
       - name: Audit high-severity dependencies
-        run: npm audit --audit-level=high
+        run: |
+          set -e
+          ok=0
+          for attempt in 1 2 3; do
+            if npm audit --audit-level=high; then
+              ok=1
+              break
+            fi
+            echo "npm audit attempt $attempt failed; retrying..."
+            sleep 10
+          done
+          test "$ok" -eq 1
 
       - name: Core engine tests
         run: npm test
