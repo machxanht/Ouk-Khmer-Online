@@ -1,0 +1,47 @@
+name: One-time secure lockfile fix
+
+on:
+  push:
+    branches:
+      - fix/final-security-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  lockfix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/final-security-hardening
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin patched fast-uri and regenerate lockfile
+        run: |
+          set -e
+          npm pkg set overrides.fast-uri=3.1.6
+          npm install --package-lock-only --ignore-scripts
+
+      - name: Verify clean install and audit
+        run: |
+          set -e
+          npm ci
+          npm audit --audit-level=high
+          npm ls fast-uri
+
+      - name: Commit secure lockfile
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git commit -m 'security: pin patched fast-uri dependency'
+          git push origin HEAD:fix/final-security-hardening
