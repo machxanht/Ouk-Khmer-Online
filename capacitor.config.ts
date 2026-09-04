@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
-    cleartext: true,
+    cleartext: false,
     allowNavigation: [
       'ouk.kuonkhmer.com',
       'ouk-khmer-online.vercel.app',

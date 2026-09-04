@@ -21,16 +21,10 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  collection,
-  query,
-  orderBy,
-  limit,
-  getDocs,
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db, googleProvider, facebookProvider } from "./firebase";
 import { onlineClient } from "./online-client";
-import { calculateElo, type EloUpdateResult } from "./elo";
 
 export type AuthUser = FirebaseUser;
 
@@ -321,79 +315,6 @@ class AuthManager {
     return 1200;
   }
 
-  public async recordOnlineMatchResult(
-    outcome: "win" | "loss" | "draw",
-    opponentRating: number = 1200,
-  ): Promise<EloUpdateResult> {
-    const currentRating = this.getPlayerRating();
-    const gamesPlayed = this.currentProfile?.gamesPlayed || 0;
-    const score = outcome === "win" ? 1 : outcome === "draw" ? 0.5 : 0;
-    const eloResult = calculateElo(currentRating, opponentRating, score, gamesPlayed);
-
-    const oldWins = this.currentProfile?.wins || 0;
-    const oldLosses = this.currentProfile?.losses || 0;
-    const oldDraws = this.currentProfile?.draws || 0;
-    const oldStreak = this.currentProfile?.winStreak || 0;
-    const oldPeak = this.currentProfile?.peakRating || currentRating;
-
-    const newWins = outcome === "win" ? oldWins + 1 : oldWins;
-    const newLosses = outcome === "loss" ? oldLosses + 1 : oldLosses;
-    const newDraws = outcome === "draw" ? oldDraws + 1 : oldDraws;
-    const newStreak = outcome === "win" ? oldStreak + 1 : outcome === "loss" ? 0 : oldStreak;
-    const newPeak = Math.max(oldPeak, eloResult.newRating);
-    const newGamesPlayed = gamesPlayed + 1;
-
-    try {
-      localStorage.setItem("ouk_player_rating", String(eloResult.newRating));
-      localStorage.setItem(
-        "ouk_player_stats",
-        JSON.stringify({
-          rating: eloResult.newRating,
-          wins: newWins,
-          losses: newLosses,
-          draws: newDraws,
-          winStreak: newStreak,
-          gamesPlayed: newGamesPlayed,
-        }),
-      );
-    } catch {
-      // ignore
-    }
-
-    if (this.currentUser && this.currentProfile) {
-      this.currentProfile = {
-        ...this.currentProfile,
-        rating: eloResult.newRating,
-        peakRating: newPeak,
-        wins: newWins,
-        losses: newLosses,
-        draws: newDraws,
-        winStreak: newStreak,
-        gamesPlayed: newGamesPlayed,
-        updatedAt: Date.now(),
-      };
-      this.notifyListeners();
-
-      try {
-        const userRef = doc(db, "users", this.currentUser.uid);
-        await updateDoc(userRef, {
-          rating: eloResult.newRating,
-          peakRating: newPeak,
-          wins: newWins,
-          losses: newLosses,
-          draws: newDraws,
-          winStreak: newStreak,
-          gamesPlayed: newGamesPlayed,
-          serverUpdatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.warn("Could not sync rating to Firestore:", err);
-      }
-    }
-
-    return eloResult;
-  }
-
   public async updatePlayerDisplayName(rawName: string): Promise<UserProfile> {
     const trimmed = rawName.trim();
     if (!trimmed || trimmed.length < 2 || trimmed.length > 30) {
@@ -456,43 +377,56 @@ class AuthManager {
 
   public async fetchLeaderboard(limitCount = 50): Promise<UserProfile[]> {
     try {
-      const usersCol = collection(db, "users");
-      let querySnapshot;
-      try {
-        const q = query(usersCol, orderBy("rating", "desc"), limit(limitCount));
-        querySnapshot = await getDocs(q);
-      } catch (queryErr) {
-        console.warn("Ordered query fallback, loading collection directly:", queryErr);
-        querySnapshot = await getDocs(query(usersCol, limit(limitCount)));
-      }
-      const profiles: UserProfile[] = [];
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data && (data.displayName || data.email)) {
-          profiles.push({
-            uid: docSnap.id,
-            email: data.email || null,
-            displayName: data.displayName || "Kỳ thủ",
-            photoURL: data.photoURL || null,
-            emailVerified: Boolean(data.emailVerified),
-            providerId: data.providerId || "password",
-            rating: typeof data.rating === "number" ? data.rating : 1200,
-            peakRating: typeof data.peakRating === "number" ? data.peakRating : data.rating || 1200,
-            wins: typeof data.wins === "number" ? data.wins : 0,
-            losses: typeof data.losses === "number" ? data.losses : 0,
-            draws: typeof data.draws === "number" ? data.draws : 0,
-            winStreak: typeof data.winStreak === "number" ? data.winStreak : 0,
-            gamesPlayed: typeof data.gamesPlayed === "number" ? data.gamesPlayed : 0,
-            createdAt: typeof data.createdAt === "number" ? data.createdAt : Date.now(),
-            updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : Date.now(),
-          });
-        }
+      if (typeof window === "undefined") return [];
+      const requestedLimit = Math.max(1, Math.min(100, Math.trunc(limitCount || 50)));
+      const targetBase =
+        (import.meta.env?.VITE_ONLINE_SERVER_URL as string) ||
+        (import.meta.env?.VITE_SOCKET_URL as string) ||
+        window.location.origin;
+      const base = targetBase.replace(/\/+$/, "");
+      const response = await fetch(`${base}/api/leaderboard?limit=${requestedLimit}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
       });
-      // Guarantee descending rating sort
-      profiles.sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
-      return profiles;
+      if (!response.ok) throw new Error(`Leaderboard request failed (${response.status})`);
+      const payload = (await response.json()) as {
+        players?: Array<{
+          uid?: string;
+          displayName?: string;
+          photoURL?: string | null;
+          rating?: number;
+          peakRating?: number;
+          wins?: number;
+          losses?: number;
+          draws?: number;
+          winStreak?: number;
+          gamesPlayed?: number;
+        }>;
+      };
+      return (payload.players || []).map((player) => ({
+        uid: player.uid || "",
+        email: null,
+        displayName: player.displayName || "Kỳ thủ",
+        photoURL: player.photoURL || null,
+        emailVerified: false,
+        providerId: "public",
+        rating: typeof player.rating === "number" ? player.rating : 1200,
+        peakRating:
+          typeof player.peakRating === "number"
+            ? player.peakRating
+            : typeof player.rating === "number"
+              ? player.rating
+              : 1200,
+        wins: typeof player.wins === "number" ? player.wins : 0,
+        losses: typeof player.losses === "number" ? player.losses : 0,
+        draws: typeof player.draws === "number" ? player.draws : 0,
+        winStreak: typeof player.winStreak === "number" ? player.winStreak : 0,
+        gamesPlayed: typeof player.gamesPlayed === "number" ? player.gamesPlayed : 0,
+        createdAt: 0,
+        updatedAt: 0,
+      }));
     } catch (err) {
-      console.warn("Error fetching real leaderboard from Firestore:", err);
+      console.warn("Error fetching public leaderboard:", err);
       return [];
     }
   }

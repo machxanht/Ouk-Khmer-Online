@@ -6,6 +6,8 @@ import {
 } from "../server/socket-security";
 import { MatchmakingManager } from "../server/matchmaking-manager";
 import { ServerLogger } from "../server/logger";
+import { sanitizePublicLeaderboardDocument } from "../server/public-leaderboard";
+import fs from "node:fs";
 
 function testCorsDefaults() {
   const production = resolveCorsOrigin(undefined, "production");
@@ -106,11 +108,47 @@ function testMatchmakingCannotSelfMatchByUid() {
   }
 }
 
+function testPublicLeaderboardPrivacy() {
+  const publicEntry = sanitizePublicLeaderboardDocument(
+    "projects/p/databases/d/documents/users/uid-private",
+    {
+      displayName: { stringValue: "Dara" },
+      photoURL: { stringValue: "https://example.com/avatar.png" },
+      rating: { integerValue: "1510" },
+      peakRating: { integerValue: "1560" },
+      wins: { integerValue: "9" },
+      losses: { integerValue: "3" },
+      draws: { integerValue: "2" },
+      winStreak: { integerValue: "4" },
+      gamesPlayed: { integerValue: "14" },
+      email: { stringValue: "private@example.com" },
+      emailVerified: { booleanValue: true },
+      providerId: { stringValue: "google.com" },
+      serverCreatedAt: { timestampValue: "2026-09-04T00:00:00Z" },
+    },
+  );
+  assert.equal(publicEntry.uid, "uid-private");
+  assert.equal(publicEntry.displayName, "Dara");
+  assert.equal(publicEntry.rating, 1510);
+  for (const privateKey of ["email", "emailVerified", "providerId", "serverCreatedAt"]) {
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(publicEntry, privateKey),
+      false,
+      `${privateKey} must never appear in the public leaderboard shape`,
+    );
+  }
+
+  const rules = fs.readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
+  assert.ok(rules.includes("allow read: if isOwner(userId);"));
+  assert.ok(!rules.includes("allow read: if true;"), "users collection must not be public-readable");
+}
+
 function main() {
   testCorsDefaults();
   testRateLimiter();
   testLogRedaction();
   testMatchmakingCannotSelfMatchByUid();
+  testPublicLeaderboardPrivacy();
   console.log("✓ server security regression tests passed");
 }
 

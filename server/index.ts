@@ -6,6 +6,7 @@ import { serverLogger } from "./logger";
 import { authVerifier, type AuthenticatedUser } from "./auth-verifier";
 import { aiBotManager } from "./ai-bot-manager";
 import { rankedManager } from "./ranked-manager";
+import { fetchPublicLeaderboard } from "./public-leaderboard";
 
 export interface RealtimeServerOptions {
   port?: number;
@@ -688,6 +689,31 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
         "Access-Control-Allow-Origin": "*",
       });
       res.end(JSON.stringify({ realCount, onlineCount: realCount + 50 }));
+      return;
+    }
+
+    if (req.url?.startsWith("/api/leaderboard")) {
+      const requestUrl = new URL(req.url, "http://localhost");
+      const requestedLimit = Number(requestUrl.searchParams.get("limit") || "50");
+      void fetchPublicLeaderboard(requestedLimit)
+        .then((players) => {
+          if (res.writableEnded) return;
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "Access-Control-Allow-Origin": "*",
+          });
+          res.end(JSON.stringify({ players }));
+        })
+        .catch(() => {
+          if (res.writableEnded) return;
+          res.writeHead(503, {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "Access-Control-Allow-Origin": "*",
+          });
+          res.end(JSON.stringify({ error: "LEADERBOARD_UNAVAILABLE" }));
+        });
       return;
     }
 
