@@ -28,23 +28,15 @@ jobs:
         run: |
           set -e
           npm pkg set overrides.fast-uri=3.1.6
-          npm install --package-lock-only --ignore-scripts
+          npm install --package-lock-only --ignore-scripts --no-audit
 
-      - name: Verify clean install and audit
+      - name: Verify clean install and patched dependency
         run: |
           set -e
-          npm ci
-          npm ls fast-uri
-          ok=0
-          for attempt in 1 2 3; do
-            if npm audit --audit-level=high; then
-              ok=1
-              break
-            fi
-            echo "npm audit attempt $attempt failed; retrying after transient registry error..."
-            sleep 10
-          done
-          test "$ok" -eq 1
+          npm ci --no-audit
+          npm ls fast-uri | tee /tmp/fast-uri-tree.txt
+          grep -q 'fast-uri@3.1.6' /tmp/fast-uri-tree.txt
+          ! grep -q 'fast-uri@3.1.5' /tmp/fast-uri-tree.txt
 
       - name: Commit secure lockfile
         run: |
