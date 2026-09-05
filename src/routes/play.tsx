@@ -148,7 +148,9 @@ function PlayPage() {
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>("standard");
 
   // Active Match Configuration & Locked State
-  const [matchRulesetId, setMatchRulesetId] = useState<RuleSetId>("folk");
+  const [matchRulesetId, setMatchRulesetId] = useState<RuleSetId>(
+    settings.defaultRuleset ?? "folk",
+  );
   const [matchTimeControl, setMatchTimeControl] = useState<TimeControl>("standard");
   const activeRuleset = useMemo<OukRuleSet>(() => getRuleSet(matchRulesetId), [matchRulesetId]);
 
