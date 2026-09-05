@@ -1,0 +1,50 @@
+name: Apply AI 4-level entry fix
+
+on:
+  push:
+    branches:
+      - fix/restore-ai-4-level-entry
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-ai-4-level-entry
+          fetch-depth: 0
+      - name: Restore AI difficulty entry flow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          play = Path('src/routes/play.tsx')
+          s = play.read_text()
+          old = '  const [showNewGameModal, setShowNewGameModal] = useState(false);'
+          new = '  const [showNewGameModal, setShowNewGameModal] = useState(search?.mode === "ai");'
+          if old not in s:
+              raise SystemExit('play modal state target not found')
+          play.write_text(s.replace(old, new, 1))
+
+          home = Path('src/routes/home.tsx')
+          s = home.read_text()
+          old = '        <Link\n          to="/play"\n          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"'
+          new = '        <Link\n          to="/play"\n          search={{ mode: "ai" }}\n          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"'
+          if old not in s:
+              raise SystemExit('home AI link target not found')
+          home.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+      - name: Commit fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/fix-ai-4-level-entry.yml
+          git add src/routes/play.tsx src/routes/home.tsx .github/workflows/fix-ai-4-level-entry.yml
+          git commit -m "fix: restore AI four-level selection entry"
+          git push origin HEAD:fix/restore-ai-4-level-entry
