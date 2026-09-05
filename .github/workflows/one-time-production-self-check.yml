@@ -1,0 +1,241 @@
+name: One-time production self-check
+
+on:
+  push:
+    branches:
+      - test/production-self-check-20260905
+
+permissions:
+  contents: read
+
+jobs:
+  self-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security and multiplayer regression suites
+        run: |
+          npm run test:security
+          npm run test:multiplayer-core
+          npm run test:multiplayer-runtime
+
+      - name: Local AI fallback and ranked-skip integration
+        shell: bash
+        run: |
+          cat > scripts/.tmp-ai-fallback.ts <<'TS'
+          import { io as ClientIO } from "socket.io-client";
+
+          process.env.NODE_ENV = "test";
+          process.env.ALLOW_DEV_AUTH_TOKENS = "true";
+          process.env.FIREBASE_SERVICE_ACCOUNT_JSON = JSON.stringify({
+            project_id: "must-not-be-used-for-bot",
+            client_email: "must-not-be-used@example.invalid",
+            private_key: "invalid-on-purpose",
+          });
+
+          const originalRandom = Math.random;
+          Math.random = () => 0;
+
+          const { createRealtimeServer } = await import("../server/index");
+          const { roomManager } = await import("../server/room-manager");
+          const { rankedManager } = await import("../server/ranked-manager");
+
+          const port = 39777;
+          const server = createRealtimeServer({ port, corsOrigin: "*" });
+          const client = ClientIO(`http://127.0.0.1:${port}`, {
+            transports: ["websocket"],
+            reconnection: false,
+            forceNew: true,
+          });
+
+          const timeout = <T>(promise: Promise<T>, ms: number, label: string) =>
+            new Promise<T>((resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error(`timeout: ${label}`)), ms);
+              promise.then(
+                (value) => { clearTimeout(timer); resolve(value); },
+                (error) => { clearTimeout(timer); reject(error); },
+              );
+            });
+
+          try {
+            await server.start();
+            await timeout(new Promise<void>((resolve, reject) => {
+              client.once("connect", () => resolve());
+              client.once("connect_error", reject);
+            }), 5000, "AI test connect");
+
+            const startedAt = Date.now();
+            const gameStart = timeout(new Promise<any>((resolve) => client.once("game:start", resolve)), 15000, "AI fallback");
+            client.emit("matchmaking:join", {
+              playerName: "AI Fallback Tester",
+              rulesetId: "folk",
+              authToken: "test_token_ai_fallback_tester",
+            });
+            const game = await gameStart;
+            const elapsed = Date.now() - startedAt;
+
+            if (elapsed < 9000 || elapsed > 14000) throw new Error(`AI fallback delay out of expected test window: ${elapsed}ms`);
+            if (!game?.roomId || !game?.opponent?.name) throw new Error("AI fallback did not produce a playable game:start payload");
+            if ("isBot" in game || "isBot" in (game.opponent || {})) throw new Error("AI identity leaked to client payload");
+            if (!Number.isFinite(game.opponent.rating) || game.opponent.rating < 1380 || game.opponent.rating > 1819) {
+              throw new Error(`AI rating outside human-like band: ${game.opponent.rating}`);
+            }
+
+            const room = roomManager.getRoomById(game.roomId);
+            if (!room?.isBotRoom) throw new Error("Server-side bot room marker missing");
+            if (!room.players.w?.isBot && !room.players.b?.isBot) throw new Error("Server-side bot player marker missing");
+
+            // This invalid service account would explode if bot matches reached Firestore persistence.
+            await rankedManager.finalize(room, "draw", "self_check_bot_rank_skip");
+            console.log(`AI fallback OK after ${elapsed}ms; bot identity hidden; ranked persistence skipped`);
+          } finally {
+            Math.random = originalRandom;
+            client.disconnect();
+            await server.stop().catch(() => undefined);
+            roomManager.clear();
+          }
+          TS
+          npx tsx scripts/.tmp-ai-fallback.ts
+          rm -f scripts/.tmp-ai-fallback.ts
+
+      - name: Production black-box security and load smoke
+        shell: bash
+        run: |
+          cat > scripts/.tmp-production-smoke.mjs <<'JS'
+          import assert from "node:assert/strict";
+          import { io } from "socket.io-client";
+          import cfg from "../firebase-applet-config.json" with { type: "json" };
+
+          const BACKEND = "https://ouk-khmer-backend-production.up.railway.app";
+          const WEB = "https://ouk.kuonkhmer.com";
+
+          async function json(url, options) {
+            const res = await fetch(url, options);
+            assert.equal(res.ok, true, `${url} returned HTTP ${res.status}`);
+            return { res, body: await res.json() };
+          }
+
+          function assertPublicLeaderboard(payload, label) {
+            assert.ok(Array.isArray(payload.players), `${label}: players array missing`);
+            assert.ok(payload.players.length <= 100, `${label}: limit clamp exceeded`);
+            const allowed = new Set(["uid", "displayName", "photoURL", "rating", "peakRating", "wins", "losses", "draws", "winStreak", "gamesPlayed"]);
+            for (const player of payload.players) {
+              for (const key of Object.keys(player)) assert.ok(allowed.has(key), `${label}: unexpected/private field leaked: ${key}`);
+              for (const key of ["email", "emailVerified", "providerId", "createdAt", "updatedAt", "serverCreatedAt", "serverUpdatedAt"]) {
+                assert.equal(Object.prototype.hasOwnProperty.call(player, key), false, `${label}: ${key} leaked`);
+              }
+            }
+          }
+
+          function waitEvent(socket, event, predicate = () => true, timeoutMs = 5000) {
+            return new Promise((resolve, reject) => {
+              const timer = setTimeout(() => { socket.off(event, handler); reject(new Error(`timeout waiting for ${event}`)); }, timeoutMs);
+              const handler = (payload) => {
+                if (!predicate(payload)) return;
+                clearTimeout(timer);
+                socket.off(event, handler);
+                resolve(payload);
+              };
+              socket.on(event, handler);
+            });
+          }
+
+          // Exact minimal health payload.
+          const { body: health } = await json(`${BACKEND}/health`);
+          assert.equal(health.status, "healthy");
+          assert.equal(typeof health.timestamp, "number");
+          assert.deepEqual(Object.keys(health).sort(), ["status", "timestamp"]);
+
+          // Online count works both direct and through Vercel, preserving product +50 behavior.
+          for (const url of [`${BACKEND}/api/online-count`, `${WEB}/api/online-count`]) {
+            const { body } = await json(url);
+            assert.equal(Number.isFinite(body.realCount), true, `${url}: realCount invalid`);
+            assert.equal(body.onlineCount, body.realCount + 50, `${url}: +50 contract changed`);
+          }
+
+          // Sanitized leaderboard direct + proxy, plus server-side limit clamp.
+          for (const [label, url] of [["backend", `${BACKEND}/api/leaderboard?limit=5000`], ["vercel", `${WEB}/api/leaderboard?limit=5000`]]) {
+            const { body } = await json(url);
+            assertPublicLeaderboard(body, label);
+          }
+
+          // Web security headers.
+          const root = await fetch(`${WEB}/`);
+          assert.equal(root.ok, true);
+          assert.ok((root.headers.get("strict-transport-security") || "").includes("max-age="), "HSTS missing");
+          assert.equal(root.headers.get("x-content-type-options"), "nosniff");
+          assert.equal(root.headers.get("x-frame-options"), "SAMEORIGIN");
+          assert.ok(root.headers.get("referrer-policy"), "Referrer-Policy missing");
+          assert.ok(root.headers.get("permissions-policy"), "Permissions-Policy missing");
+
+          // PWA manifest and versioned launcher icon resources.
+          const { body: manifest } = await json(`${WEB}/manifest.json`);
+          const manifestText = JSON.stringify(manifest);
+          for (const icon of ["apple-touch-icon-20260904.png", "icon-192-20260904.png", "icon-512-20260904.png", "icon-192-maskable-20260904.png", "icon-512-maskable-20260904.png"]) {
+            assert.ok(manifestText.includes(icon) || icon.startsWith("apple-touch"), `manifest missing ${icon}`);
+            const iconRes = await fetch(`${WEB}/${icon}`);
+            assert.equal(iconRes.ok, true, `${icon} unavailable`);
+          }
+
+          // Socket.IO CORS is explicit for the production origin and not wildcard for an untrusted origin.
+          const polling = `${BACKEND}/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
+          const allowedCors = await fetch(polling, { headers: { Origin: WEB } });
+          assert.equal(allowedCors.headers.get("access-control-allow-origin"), WEB, "allowed Socket.IO origin missing ACAO");
+          const evilCors = await fetch(polling, { headers: { Origin: "https://evil.example" } });
+          assert.notEqual(evilCors.headers.get("access-control-allow-origin"), "*", "Socket.IO CORS exposed wildcard");
+          assert.notEqual(evilCors.headers.get("access-control-allow-origin"), "https://evil.example", "untrusted origin reflected by CORS");
+
+          // Production auth is mandatory for matchmaking/private room creation.
+          const socket = io(BACKEND, { transports: ["websocket"], reconnection: false, forceNew: true, extraHeaders: { Origin: WEB } });
+          await waitEvent(socket, "connect");
+          const authMM = waitEvent(socket, "game:error", (p) => p?.code === "AUTH_REQUIRED");
+          socket.emit("matchmaking:join", { playerName: "unauthenticated" });
+          await authMM;
+          const authRoom = waitEvent(socket, "room:error", (p) => p?.code === "AUTH_REQUIRED");
+          socket.emit("create:private", { playerName: "unauthenticated" });
+          await authRoom;
+
+          // Packet-level limiter is active in production.
+          const limited = waitEvent(socket, "game:error", (p) => p?.code === "RATE_LIMITED");
+          for (let i = 0; i < 8; i++) socket.emit("game:resign");
+          await limited;
+          socket.disconnect();
+
+          // Firestore private collections reject unauthenticated REST reads.
+          const base = `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/${cfg.firestoreDatabaseId}/documents`;
+          for (const collection of ["users", "match_history"]) {
+            const res = await fetch(`${base}/${collection}?pageSize=1&key=${cfg.apiKey}`);
+            assert.equal(res.status, 403, `unauthenticated ${collection} read should be 403, got ${res.status}`);
+            const body = await res.json();
+            assert.equal(body?.error?.status, "PERMISSION_DENIED", `${collection} denial was not PERMISSION_DENIED`);
+          }
+
+          // Small connection burst: verify server remains healthy and responsive after 20 simultaneous clients.
+          const clients = Array.from({ length: 20 }, () => io(BACKEND, {
+            transports: ["websocket"], reconnection: false, forceNew: true, extraHeaders: { Origin: WEB },
+          }));
+          try {
+            await Promise.all(clients.map((c) => waitEvent(c, "connect", () => true, 7000)));
+            const { body: afterLoad } = await json(`${BACKEND}/health`);
+            assert.deepEqual(Object.keys(afterLoad).sort(), ["status", "timestamp"]);
+            assert.equal(afterLoad.status, "healthy");
+          } finally {
+            for (const c of clients) c.disconnect();
+          }
+
+          console.log("PRODUCTION SELF-CHECK PASSED: health, routing, privacy, headers, PWA, CORS, auth, rate-limit, Firestore denial, connection burst");
+          JS
+          node scripts/.tmp-production-smoke.mjs
+          rm -f scripts/.tmp-production-smoke.mjs
