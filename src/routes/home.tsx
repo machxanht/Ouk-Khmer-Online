@@ -182,7 +182,7 @@ function HomePage() {
 
       {showAiGate && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-background/75 p-3 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-3 backdrop-blur-sm"
           onClick={() => setShowAiGate(false)}
         >
           <section
@@ -190,7 +190,7 @@ function HomePage() {
             aria-modal="true"
             aria-label="Choose AI opponent"
             onClick={(event) => event.stopPropagation()}
-            className="kbach-frame w-full max-w-md rounded-[2rem] border border-gold/50 bg-card p-4 shadow-2xl animate-rise sm:p-5"
+            className="kbach-frame max-h-[calc(100dvh-7rem)] w-full max-w-md overflow-y-auto rounded-[2rem] border border-gold/50 bg-card p-4 shadow-2xl animate-rise sm:p-5"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
@@ -222,7 +222,7 @@ function HomePage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="grid h-11 w-11 place-items-center rounded-xl border border-gold/30 bg-card">
-                      <OukPiece type={opponent.piece} color="b" className="h-9 w-9" />
+                      <OukPiece type={opponent.piece} color="w" className="h-9 w-9" />
                     </span>
                     <ChevronRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-gold-dark" />
                   </div>
