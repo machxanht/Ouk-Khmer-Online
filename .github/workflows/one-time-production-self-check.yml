@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           cat > scripts/.tmp-ai-fallback.ts <<'TS'
-          import { io as ClientIO } from "socket.io-client";
+          import { io as ClientIO, type Socket } from "socket.io-client";
 
           process.env.NODE_ENV = "test";
           process.env.ALLOW_DEV_AUTH_TOKENS = "true";
@@ -54,11 +54,7 @@ jobs:
 
           const port = 39777;
           const server = createRealtimeServer({ port, corsOrigin: "*" });
-          const client = ClientIO(`http://127.0.0.1:${port}`, {
-            transports: ["websocket"],
-            reconnection: false,
-            forceNew: true,
-          });
+          let client: Socket | null = null;
 
           const timeout = <T>(promise: Promise<T>, ms: number, label: string) =>
             new Promise<T>((resolve, reject) => {
@@ -71,13 +67,18 @@ jobs:
 
           try {
             await server.start();
+            client = ClientIO(`http://127.0.0.1:${port}`, {
+              transports: ["websocket"],
+              reconnection: false,
+              forceNew: true,
+            });
             await timeout(new Promise<void>((resolve, reject) => {
-              client.once("connect", () => resolve());
-              client.once("connect_error", reject);
+              client!.once("connect", () => resolve());
+              client!.once("connect_error", reject);
             }), 5000, "AI test connect");
 
             const startedAt = Date.now();
-            const gameStart = timeout(new Promise<any>((resolve) => client.once("game:start", resolve)), 15000, "AI fallback");
+            const gameStart = timeout(new Promise<any>((resolve) => client!.once("game:start", resolve)), 15000, "AI fallback");
             client.emit("matchmaking:join", {
               playerName: "AI Fallback Tester",
               rulesetId: "folk",
@@ -102,7 +103,7 @@ jobs:
             console.log(`AI fallback OK after ${elapsed}ms; bot identity hidden; ranked persistence skipped`);
           } finally {
             Math.random = originalRandom;
-            client.disconnect();
+            client?.disconnect();
             await server.stop().catch(() => undefined);
             roomManager.clear();
           }
@@ -115,9 +116,10 @@ jobs:
         run: |
           cat > scripts/.tmp-production-smoke.mjs <<'JS'
           import assert from "node:assert/strict";
+          import fs from "node:fs";
           import { io } from "socket.io-client";
-          import cfg from "../firebase-applet-config.json" with { type: "json" };
 
+          const cfg = JSON.parse(fs.readFileSync(new URL("../firebase-applet-config.json", import.meta.url), "utf8"));
           const BACKEND = "https://ouk-khmer-backend-production.up.railway.app";
           const WEB = "https://ouk.kuonkhmer.com";
 
@@ -152,26 +154,22 @@ jobs:
             });
           }
 
-          // Exact minimal health payload.
           const { body: health } = await json(`${BACKEND}/health`);
           assert.equal(health.status, "healthy");
           assert.equal(typeof health.timestamp, "number");
           assert.deepEqual(Object.keys(health).sort(), ["status", "timestamp"]);
 
-          // Online count works both direct and through Vercel, preserving product +50 behavior.
           for (const url of [`${BACKEND}/api/online-count`, `${WEB}/api/online-count`]) {
             const { body } = await json(url);
             assert.equal(Number.isFinite(body.realCount), true, `${url}: realCount invalid`);
             assert.equal(body.onlineCount, body.realCount + 50, `${url}: +50 contract changed`);
           }
 
-          // Sanitized leaderboard direct + proxy, plus server-side limit clamp.
           for (const [label, url] of [["backend", `${BACKEND}/api/leaderboard?limit=5000`], ["vercel", `${WEB}/api/leaderboard?limit=5000`]]) {
             const { body } = await json(url);
             assertPublicLeaderboard(body, label);
           }
 
-          // Web security headers.
           const root = await fetch(`${WEB}/`);
           assert.equal(root.ok, true);
           assert.ok((root.headers.get("strict-transport-security") || "").includes("max-age="), "HSTS missing");
@@ -180,7 +178,6 @@ jobs:
           assert.ok(root.headers.get("referrer-policy"), "Referrer-Policy missing");
           assert.ok(root.headers.get("permissions-policy"), "Permissions-Policy missing");
 
-          // PWA manifest and versioned launcher icon resources.
           const { body: manifest } = await json(`${WEB}/manifest.json`);
           const manifestText = JSON.stringify(manifest);
           for (const icon of ["apple-touch-icon-20260904.png", "icon-192-20260904.png", "icon-512-20260904.png", "icon-192-maskable-20260904.png", "icon-512-maskable-20260904.png"]) {
@@ -189,7 +186,6 @@ jobs:
             assert.equal(iconRes.ok, true, `${icon} unavailable`);
           }
 
-          // Socket.IO CORS is explicit for the production origin and not wildcard for an untrusted origin.
           const polling = `${BACKEND}/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
           const allowedCors = await fetch(polling, { headers: { Origin: WEB } });
           assert.equal(allowedCors.headers.get("access-control-allow-origin"), WEB, "allowed Socket.IO origin missing ACAO");
@@ -197,7 +193,6 @@ jobs:
           assert.notEqual(evilCors.headers.get("access-control-allow-origin"), "*", "Socket.IO CORS exposed wildcard");
           assert.notEqual(evilCors.headers.get("access-control-allow-origin"), "https://evil.example", "untrusted origin reflected by CORS");
 
-          // Production auth is mandatory for matchmaking/private room creation.
           const socket = io(BACKEND, { transports: ["websocket"], reconnection: false, forceNew: true, extraHeaders: { Origin: WEB } });
           await waitEvent(socket, "connect");
           const authMM = waitEvent(socket, "game:error", (p) => p?.code === "AUTH_REQUIRED");
@@ -207,13 +202,11 @@ jobs:
           socket.emit("create:private", { playerName: "unauthenticated" });
           await authRoom;
 
-          // Packet-level limiter is active in production.
           const limited = waitEvent(socket, "game:error", (p) => p?.code === "RATE_LIMITED");
           for (let i = 0; i < 8; i++) socket.emit("game:resign");
           await limited;
           socket.disconnect();
 
-          // Firestore private collections reject unauthenticated REST reads.
           const base = `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/${cfg.firestoreDatabaseId}/documents`;
           for (const collection of ["users", "match_history"]) {
             const res = await fetch(`${base}/${collection}?pageSize=1&key=${cfg.apiKey}`);
@@ -222,7 +215,6 @@ jobs:
             assert.equal(body?.error?.status, "PERMISSION_DENIED", `${collection} denial was not PERMISSION_DENIED`);
           }
 
-          // Small connection burst: verify server remains healthy and responsive after 20 simultaneous clients.
           const clients = Array.from({ length: 20 }, () => io(BACKEND, {
             transports: ["websocket"], reconnection: false, forceNew: true, extraHeaders: { Origin: WEB },
           }));
