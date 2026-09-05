@@ -2,6 +2,13 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": ".output/public",
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/favicon-48-20260906.png",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/online-count",
