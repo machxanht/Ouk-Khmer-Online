@@ -12,6 +12,38 @@ import {
   RematchOfferedPayload,
 } from "./online-types";
 
+const CONSOLIDATED_ONLINE_SERVER_URL =
+  "https://ouk-khmer-backend-production-8a36.up.railway.app";
+const LEGACY_PRODUCTION_SERVER_URLS = new Set([
+  "https://ouk-khmer-backend-production.up.railway.app",
+  "https://ouk-khmer-online-production.up.railway.app",
+]);
+
+function normalizeServerUrl(value?: string): string {
+  return (value || "").trim().replace(/\/+$/, "");
+}
+
+function resolveOnlineServerUrl(explicitUrl?: string): string {
+  if (explicitUrl) return explicitUrl;
+  if (typeof window === "undefined") return "http://localhost:3000";
+
+  const configuredUrl =
+    (import.meta.env?.VITE_ONLINE_SERVER_URL as string) ||
+    (import.meta.env?.VITE_SOCKET_URL as string) ||
+    "";
+
+  if (!import.meta.env?.PROD) {
+    return configuredUrl || window.location.origin;
+  }
+
+  const normalizedConfiguredUrl = normalizeServerUrl(configuredUrl);
+  if (!normalizedConfiguredUrl || LEGACY_PRODUCTION_SERVER_URLS.has(normalizedConfiguredUrl)) {
+    return CONSOLIDATED_ONLINE_SERVER_URL;
+  }
+
+  return configuredUrl;
+}
+
 export type OnlineClientEventMap = {
   connect: () => void;
   disconnect: (reason: string) => void;
@@ -115,14 +147,7 @@ export class OnlineClient {
       return this.socket;
     }
 
-    // Determine target URL
-    const targetUrl =
-      url ||
-      (typeof window !== "undefined"
-        ? (import.meta.env?.VITE_ONLINE_SERVER_URL as string) ||
-          (import.meta.env?.VITE_SOCKET_URL as string) ||
-          window.location.origin
-        : "http://localhost:3000");
+    const targetUrl = resolveOnlineServerUrl(url);
 
     this.socket = io(targetUrl, {
       transports: ["websocket", "polling"],
