@@ -379,12 +379,7 @@ class AuthManager {
     try {
       if (typeof window === "undefined") return [];
       const requestedLimit = Math.max(1, Math.min(100, Math.trunc(limitCount || 50)));
-      const targetBase =
-        (import.meta.env?.VITE_ONLINE_SERVER_URL as string) ||
-        (import.meta.env?.VITE_SOCKET_URL as string) ||
-        window.location.origin;
-      const base = targetBase.replace(/\/+$/, "");
-      const response = await fetch(`${base}/api/leaderboard?limit=${requestedLimit}`, {
+      const response = await fetch(`/api/leaderboard?limit=${requestedLimit}`, {
         headers: { Accept: "application/json" },
         cache: "no-store",
       });
