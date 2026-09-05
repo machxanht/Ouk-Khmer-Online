@@ -176,7 +176,7 @@ function PlayPage() {
   // Popovers and Modals
   const [showResignModal, setShowResignModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [showNewGameModal, setShowNewGameModal] = useState(false);
+  const [showNewGameModal, setShowNewGameModal] = useState((search?.mode ?? "ai") === "ai");
   const [showVolumePopover, setShowVolumePopover] = useState(false);
   const [showPiecePopover, setShowPiecePopover] = useState(false);
   const [showThemePopover, setShowThemePopover] = useState(false);
