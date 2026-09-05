@@ -39,6 +39,56 @@ export function ChessBoard({
   const theme = BOARD_THEMES[boardTheme];
   const order = Array.from({ length: 64 }, (_, i) => (flipped ? 63 - i : i));
 
+  // Paint the complete geometry of the latest move, not only its endpoints.
+  // A knight deliberately draws an L-shaped trail so its jump is immediately readable.
+  const lastMoveTrail = (() => {
+    const trail = new Set<number>();
+    if (!lastMove) return trail;
+
+    const { from, to } = lastMove;
+    trail.add(from);
+    trail.add(to);
+
+    const fromRow = Math.floor(from / 8);
+    const fromCol = from % 8;
+    const toRow = Math.floor(to / 8);
+    const toCol = to % 8;
+    const rowDelta = toRow - fromRow;
+    const colDelta = toCol - fromCol;
+    const movedPiece = board[to];
+
+    if (
+      movedPiece?.type === "n" &&
+      ((Math.abs(rowDelta) === 2 && Math.abs(colDelta) === 1) ||
+        (Math.abs(rowDelta) === 1 && Math.abs(colDelta) === 2))
+    ) {
+      if (Math.abs(rowDelta) === 2) {
+        trail.add((fromRow + Math.sign(rowDelta)) * 8 + fromCol);
+        trail.add(toRow * 8 + fromCol);
+      } else {
+        trail.add(fromRow * 8 + fromCol + Math.sign(colDelta));
+        trail.add(fromRow * 8 + toCol);
+      }
+      return trail;
+    }
+
+    const aligned =
+      rowDelta === 0 || colDelta === 0 || Math.abs(rowDelta) === Math.abs(colDelta);
+    if (!aligned) return trail;
+
+    const rowStep = Math.sign(rowDelta);
+    const colStep = Math.sign(colDelta);
+    let row = fromRow + rowStep;
+    let col = fromCol + colStep;
+    while (row !== toRow || col !== toCol) {
+      trail.add(row * 8 + col);
+      row += rowStep;
+      col += colStep;
+    }
+
+    return trail;
+  })();
+
   // Check/Checkmate/King Capture 3-second non-blocking calligraphy splash state.
   // Trigger on the check event itself and let the splash finish even if AI answers immediately.
   const [showMateSplash, setShowMateSplash] = useState(false);
@@ -103,7 +153,7 @@ export function ChessBoard({
           const isDark = (Math.floor(i / 8) + (i % 8)) % 2 === 1;
           const isTarget = targets.includes(i);
           const isSelected = selected === i;
-          const isLast = lastMove && (lastMove.from === i || lastMove.to === i);
+          const isLast = lastMoveTrail.has(i);
           const isCheck = checkSquare === i;
 
           return (
@@ -119,7 +169,11 @@ export function ChessBoard({
               {isLast ? (
                 <span
                   className={`absolute inset-0 pointer-events-none ${
-                    lastMove?.to === i ? "bg-gold/30 ring-1 ring-inset ring-gold/60" : "bg-gold/15"
+                    lastMove?.to === i
+                      ? "bg-amber-300/50 ring-2 ring-inset ring-amber-500/80"
+                      : lastMove?.from === i
+                        ? "bg-amber-300/35 ring-1 ring-inset ring-amber-500/60"
+                        : "bg-amber-300/30 ring-1 ring-inset ring-amber-400/35"
                   }`}
                 />
               ) : null}
