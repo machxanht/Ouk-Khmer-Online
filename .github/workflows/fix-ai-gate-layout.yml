@@ -1,0 +1,39 @@
+name: Apply AI gate layout fix
+on:
+  push:
+    branches: [fix/ai-gate-center-white]
+    paths: [.github/workflows/fix-ai-gate-layout.yml]
+permissions:
+  contents: write
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/ai-gate-center-white
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply focused layout changes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/home.tsx')
+          s = p.read_text()
+          s = s.replace('className="fixed inset-0 z-50 flex items-end justify-center bg-background/75 p-3 backdrop-blur-sm sm:items-center"', 'className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-3 backdrop-blur-sm"')
+          s = s.replace('className="kbach-frame w-full max-w-md rounded-[2rem] border border-gold/50 bg-card p-4 shadow-2xl animate-rise sm:p-5"', 'className="kbach-frame max-h-[calc(100dvh-7rem)] w-full max-w-md overflow-y-auto rounded-[2rem] border border-gold/50 bg-card p-4 shadow-2xl animate-rise sm:p-5"')
+          s = s.replace('<OukPiece type={opponent.piece} color="b" className="h-9 w-9" />', '<OukPiece type={opponent.piece} color="w" className="h-9 w-9" />')
+          p.write_text(s)
+          PY
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Commit verified change and remove temporary workflow
+        run: |
+          rm .github/workflows/fix-ai-gate-layout.yml
+          git config user.name "machxanht"
+          git config user.email "machxanht@gmail.com"
+          git add src/routes/home.tsx .github/workflows/fix-ai-gate-layout.yml
+          git commit -m "fix: center AI rival picker and lighten pieces"
+          git push origin HEAD:fix/ai-gate-center-white
