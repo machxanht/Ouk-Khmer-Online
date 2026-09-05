@@ -5,11 +5,11 @@
   "rewrites": [
     {
       "source": "/api/online-count",
-      "destination": "https://ouk-khmer-backend-production.up.railway.app/api/online-count"
+      "destination": "https://ouk-khmer-backend-production-8a36.up.railway.app/api/online-count"
     },
     {
       "source": "/api/leaderboard",
-      "destination": "https://ouk-khmer-backend-production.up.railway.app/api/leaderboard"
+      "destination": "https://ouk-khmer-backend-production-8a36.up.railway.app/api/leaderboard"
     },
     {
       "source": "/home",
