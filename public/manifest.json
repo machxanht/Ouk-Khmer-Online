@@ -10,10 +10,33 @@
   "theme_color": "#D4AF37",
   "icons": [
     {
-      "src": "/launcher-logo-main-20260906.png",
+      "src": "/apple-touch-icon-20260904.png",
       "type": "image/png",
-      "sizes": "any",
+      "sizes": "180x180"
+    },
+    {
+      "src": "/icon-192-20260904.png",
+      "type": "image/png",
+      "sizes": "192x192",
       "purpose": "any"
+    },
+    {
+      "src": "/icon-512-20260904.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192-maskable-20260904.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512-maskable-20260904.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }
