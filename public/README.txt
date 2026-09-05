@@ -1,18 +1,22 @@
-Add this to your HTML <head>:
+Web/PWA launcher icon setup
 
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+HTML <head>:
 
-Add this to your app's manifest.json:
+    <link rel="icon" type="image/png" href="/launcher-icon-20260906.png">
+    <link rel="shortcut icon" type="image/png" href="/launcher-icon-20260906.png">
+    <link rel="apple-touch-icon" href="/launcher-icon-20260906.png">
 
-    ...
+Manifest:
+
     {
       "icons": [
-        { "src": "/favicon.ico", "type": "image/x-icon", "sizes": "16x16 32x32" },
-        { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
-        { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
-        { "src": "/icon-192-maskable.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
-        { "src": "/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+        {
+          "src": "/launcher-icon-20260906.png",
+          "type": "image/png",
+          "sizes": "512x512",
+          "purpose": "any"
+        }
       ]
     }
-    ...
+
+The launcher file is copied from src/assets/mascot.png. Legacy IconKitchen web/PWA icon files are intentionally removed.
