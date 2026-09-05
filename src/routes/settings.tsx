@@ -4,11 +4,14 @@ import {
   Check,
   Crown,
   Languages,
+  Mail,
+  MessageSquare,
   Moon,
   Music,
   Palette,
   Play,
   Scroll,
+  Send,
   Sparkles,
   User,
   Volume2,
@@ -51,6 +54,11 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const { t, lang, setLang } = useI18n();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackEmail, setFeedbackEmail] = useState("");
+  const [feedbackPhone, setFeedbackPhone] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackError, setFeedbackError] = useState("");
   const {
     dark,
     sound,
@@ -63,6 +71,28 @@ function SettingsPage() {
     defaultRuleset,
     update,
   } = useSettings();
+
+  const submitFeedback = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = feedbackEmail.trim();
+    const phone = feedbackPhone.trim();
+    const message = feedbackMessage.trim();
+    if (!email || !message) {
+      setFeedbackError("Vui lòng nhập email và nội dung góp ý.");
+      return;
+    }
+    setFeedbackError("");
+    const subject = "Ouk Chatrang — Liên hệ / Góp ý";
+    const body = [
+      `Email: ${email}`,
+      `Số điện thoại: ${phone || "Không cung cấp"}`,
+      "",
+      "Nội dung:",
+      message,
+    ].join("\n");
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent("kuonkhmer.com+ouk@gmail.com")}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   const toggles = [
     { key: "dark_mode", icon: Moon, on: dark, set: (v: boolean) => update({ dark: v }) },
@@ -425,6 +455,83 @@ function SettingsPage() {
           </button>
         </li>
       </ul>
+
+      <div className="my-5">
+        <KbachDivider />
+      </div>
+      <SectionTitle icon={MessageSquare}>Liên hệ & góp ý</SectionTitle>
+      <section className="overflow-hidden rounded-2xl border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen((value) => !value)}
+          className="flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-secondary/40"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl border border-gold/30 bg-gold/10">
+            <Mail className="h-4 w-4 text-gold-dark" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">
+              Gửi góp ý cho Ouk Chatrang
+            </span>
+            <span className="block text-[11px] text-muted-foreground">
+              Email, số điện thoại và nội dung của bạn.
+            </span>
+          </span>
+          <span className="text-lg text-gold-dark">{feedbackOpen ? "−" : "+"}</span>
+        </button>
+        {feedbackOpen && (
+          <form
+            onSubmit={submitFeedback}
+            className="grid gap-3 border-t border-border p-3.5 animate-fade-in"
+          >
+            <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+              Email <span className="text-red-500">*</span>
+              <input
+                type="email"
+                required
+                value={feedbackEmail}
+                onChange={(event) => setFeedbackEmail(event.target.value)}
+                placeholder="ban@example.com"
+                className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-normal outline-none transition focus:border-gold"
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+              Số điện thoại
+              <input
+                type="tel"
+                value={feedbackPhone}
+                onChange={(event) => setFeedbackPhone(event.target.value)}
+                placeholder="+84…"
+                className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-normal outline-none transition focus:border-gold"
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+              Nội dung <span className="text-red-500">*</span>
+              <textarea
+                required
+                rows={5}
+                maxLength={3000}
+                value={feedbackMessage}
+                onChange={(event) => setFeedbackMessage(event.target.value)}
+                placeholder="Bạn muốn góp ý điều gì?"
+                className="resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-normal leading-relaxed outline-none transition focus:border-gold"
+              />
+            </label>
+            {feedbackError ? (
+              <p className="text-xs font-medium text-red-500">{feedbackError}</p>
+            ) : null}
+            <button
+              type="submit"
+              className="shimmer-sheen bg-royal flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-gold transition active:scale-[0.98]"
+            >
+              <Send className="h-4 w-4" /> Mở Gmail để gửi
+            </button>
+            <p className="text-center text-[10px] leading-relaxed text-muted-foreground">
+              Gmail sẽ mở với nội dung đã điền sẵn và gửi tới hộp thư góp ý của Ouk Chatrang.
+            </p>
+          </form>
+        )}
+      </section>
     </AppShell>
   );
 }

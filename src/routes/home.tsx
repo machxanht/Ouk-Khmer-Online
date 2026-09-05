@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bot, ChevronRight, Crown, Globe2, Swords, Users } from "lucide-react";
+import { useState } from "react";
+import { Bot, ChevronRight, Crown, Globe2, Sparkles, Swords, Users, X } from "lucide-react";
 
 import { AppShell, SectionTitle } from "../components/AppShell";
 import { KbachDivider } from "../components/KhmerOrnament";
@@ -37,9 +38,41 @@ export const Route = createFileRoute("/home")({
  */
 const HOME_OUK_PIECES: PieceType[] = ["k", "q", "b", "n", "r", "p"];
 
+const AI_OPPONENTS = [
+  {
+    depth: 1,
+    key: "novice",
+    piece: "p" as PieceType,
+    title: "Trey Scout",
+    note: "Calm, forgiving, good for learning.",
+  },
+  {
+    depth: 2,
+    key: "apprentice",
+    piece: "n" as PieceType,
+    title: "Ses Rider",
+    note: "Faster tactics and sharper replies.",
+  },
+  {
+    depth: 3,
+    key: "master",
+    piece: "b" as PieceType,
+    title: "Koul Strategist",
+    note: "Plans ahead and punishes loose moves.",
+  },
+  {
+    depth: 4,
+    key: "grandmaster",
+    piece: "k" as PieceType,
+    title: "Angkor Grandmaster",
+    note: "The strongest challenge on this board.",
+  },
+] as const;
+
 function HomePage() {
   const { t, lang } = useI18n();
   const dailyQuote = getDailyQuote(lang);
+  const [showAiGate, setShowAiGate] = useState(false);
 
   return (
     <AppShell>
@@ -75,22 +108,26 @@ function HomePage() {
       <SectionTitle icon={Swords}>{t("game_modes")}</SectionTitle>
       <div className="animate-rise grid grid-cols-2 gap-3">
         {/* [Đấu với AI] */}
-        <Link
-          to="/play"
-          search={{ mode: "ai" }}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"
+        <button
+          type="button"
+          onClick={() => setShowAiGate(true)}
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"
         >
           <div className="flex items-start justify-between">
             <span className="grid h-11 w-11 place-items-center rounded-2xl border border-gold/40 bg-secondary text-gold-dark transition-transform duration-300 group-hover:scale-105">
               <Bot className="h-5 w-5" />
             </span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-gold" />
+            <span className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-gold-dark">
+              <Sparkles className="h-3 w-3" /> 4 rivals
+            </span>
           </div>
           <div className="mt-4">
             <h4 className="font-serif text-sm font-semibold text-foreground">{t("play_vs_ai")}</h4>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("play_vs_ai_desc")}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Choose your rival before entering the board.
+            </p>
           </div>
-        </Link>
+        </button>
 
         {/* [2 người cùng máy] */}
         <Link
@@ -142,6 +179,66 @@ function HomePage() {
           );
         })}
       </ul>
+
+      {showAiGate && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-background/75 p-3 backdrop-blur-sm sm:items-center"
+          onClick={() => setShowAiGate(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose AI opponent"
+            onClick={(event) => event.stopPropagation()}
+            className="kbach-frame w-full max-w-md rounded-[2rem] border border-gold/50 bg-card p-4 shadow-2xl animate-rise sm:p-5"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gold-dark">
+                  Temple challengers
+                </p>
+                <h3 className="mt-1 font-serif text-xl font-bold text-foreground">
+                  Choose your AI rival
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  One tap starts the match. Rules use your saved default.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAiGate(false)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:border-gold/60 hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {AI_OPPONENTS.map((opponent) => (
+                <Link
+                  key={opponent.depth}
+                  to="/play"
+                  search={{ mode: "ai", depth: opponent.depth }}
+                  className="group rounded-2xl border border-border bg-secondary/40 p-3 transition-all hover:-translate-y-0.5 hover:border-gold/70 hover:bg-gold/10 active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="grid h-11 w-11 place-items-center rounded-xl border border-gold/30 bg-card">
+                      <OukPiece type={opponent.piece} color="b" className="h-9 w-9" />
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-gold-dark" />
+                  </div>
+                  <p className="mt-2 font-serif text-xs font-bold text-foreground">
+                    {opponent.title}
+                  </p>
+                  <p className="text-[10px] font-semibold text-gold-dark">{t(opponent.key)}</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                    {opponent.note}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Daily Wisdom Section */}
       <section className="kbach-frame animate-rise mt-5 flex items-center gap-3.5 rounded-3xl border border-gold/30 bg-card/90 p-4 shadow-sm backdrop-blur">

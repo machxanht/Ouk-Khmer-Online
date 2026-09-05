@@ -68,10 +68,11 @@ import { audioManager } from "../lib/audio";
 import type { AIWorkerRequest, AIWorkerResponse } from "../workers/ai.worker";
 
 export const Route = createFileRoute("/play")({
-  validateSearch: (search: Record<string, unknown>): { mode?: "ai" | "local" } => {
-    return {
-      mode: (search.mode as "ai" | "local") || undefined,
-    };
+  validateSearch: (search: Record<string, unknown>): { mode?: "ai" | "local"; depth?: number } => {
+    const rawDepth = Number(search.depth);
+    const depth =
+      Number.isInteger(rawDepth) && rawDepth >= 1 && rawDepth <= 4 ? rawDepth : undefined;
+    return { mode: (search.mode as "ai" | "local") || undefined, depth };
   },
   head: () => ({
     meta: [
@@ -133,13 +134,12 @@ function PlayPage() {
   // Offline mode is active by default to guarantee instant, seamless play
   const [started, setStarted] = useState(true);
   const [mode, setMode] = useState<Mode>(search?.mode ?? "ai");
-  const [depth, setDepth] = useState(2);
+  const [depth, setDepth] = useState(search?.depth ?? 2);
 
   useEffect(() => {
-    if (search?.mode) {
-      setMode(search.mode);
-    }
-  }, [search?.mode]);
+    if (search?.mode) setMode(search.mode);
+    if (search?.depth) setDepth(search.depth);
+  }, [search?.mode, search?.depth]);
 
   // Setup Stage Selections
   const [selectedRulesetId, setSelectedRulesetId] = useState<RuleSetId>(
@@ -148,7 +148,9 @@ function PlayPage() {
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>("standard");
 
   // Active Match Configuration & Locked State
-  const [matchRulesetId, setMatchRulesetId] = useState<RuleSetId>("folk");
+  const [matchRulesetId, setMatchRulesetId] = useState<RuleSetId>(
+    settings.defaultRuleset ?? "folk",
+  );
   const [matchTimeControl, setMatchTimeControl] = useState<TimeControl>("standard");
   const activeRuleset = useMemo<OukRuleSet>(() => getRuleSet(matchRulesetId), [matchRulesetId]);
 
@@ -176,7 +178,7 @@ function PlayPage() {
   // Popovers and Modals
   const [showResignModal, setShowResignModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [showNewGameModal, setShowNewGameModal] = useState(search?.mode === "ai");
+  const [showNewGameModal, setShowNewGameModal] = useState(false);
   const [showVolumePopover, setShowVolumePopover] = useState(false);
   const [showPiecePopover, setShowPiecePopover] = useState(false);
   const [showThemePopover, setShowThemePopover] = useState(false);
@@ -923,27 +925,22 @@ function PlayPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const nextMode: Mode = mode === "ai" ? "local" : "ai";
-                setMode(nextMode);
-                reset(matchRulesetId, matchTimeControl);
-              }}
-              className="flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/70 px-2 py-0.5 text-[11px] font-semibold text-foreground hover:border-gold/50 active:scale-95 transition-all"
-            >
+            <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/70 px-2 py-0.5 text-[11px] font-semibold text-foreground">
               {mode === "ai" ? (
                 <>
-                  <Bot className="h-3.5 w-3.5 text-gold-dark" />
-                  <span>AI ({t(LEVELS[depth - 1]?.key ?? "novice")})</span>
+                  {" "}
+                  <Bot className="h-3.5 w-3.5 text-gold-dark" />{" "}
+                  <span>AI • {t(LEVELS[depth - 1]?.key ?? "novice")}</span>{" "}
                 </>
               ) : (
                 <>
-                  <Users className="h-3.5 w-3.5 text-gold-dark" />
-                  <span>{t("local_2p")}</span>
+                  {" "}
+                  <Users className="h-3.5 w-3.5 text-gold-dark" /> <span>{t("local_2p")}</span>{" "}
                 </>
               )}
-            </button>
+              <span className="text-muted-foreground">•</span>
+              <span>{matchTimeControl === "blitz" ? t("blitz_time") : t("standard_time")}</span>
+            </div>
           </div>
         </div>
 
@@ -1245,39 +1242,6 @@ function PlayPage() {
               >
                 ✕
               </button>
-            </div>
-
-            {/* Mode Selection */}
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                {t("game_modes")}
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMode("ai")}
-                  className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition-all ${
-                    mode === "ai"
-                      ? "border-gold bg-gold/20 text-gold-dark ring-1 ring-gold/40 shadow-xs"
-                      : "border-border bg-secondary/60 text-foreground hover:border-gold/50"
-                  }`}
-                >
-                  <Bot className="h-4 w-4 text-gold-dark" />
-                  {t("play_vs_ai")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("local")}
-                  className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition-all ${
-                    mode === "local"
-                      ? "border-gold bg-gold/20 text-gold-dark ring-1 ring-gold/40 shadow-xs"
-                      : "border-border bg-secondary/60 text-foreground hover:border-gold/50"
-                  }`}
-                >
-                  <Users className="h-4 w-4 text-gold-dark" />
-                  {t("local_2p")}
-                </button>
-              </div>
             </div>
 
             {/* AI Difficulty (if mode === 'ai') */}
