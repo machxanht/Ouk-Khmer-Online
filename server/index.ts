@@ -682,7 +682,7 @@ export function createRealtimeServer(options: RealtimeServerOptions = {}) {
   let ioRef: SocketIOServer | null = null;
 
   const httpServer = http.createServer((req, res) => {
-    if (req.url === "/api/online-count") {
+    if (req.url?.startsWith("/api/online-count")) {
       const realCount = ioRef?.sockets?.sockets?.size || 0;
       res.writeHead(200, {
         "Content-Type": "application/json",
