@@ -77,6 +77,7 @@ function HomePage() {
         {/* [Đấu với AI] */}
         <Link
           to="/play"
+          search={{ mode: "ai" }}
           className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-gold/60 hover:shadow-temple active:scale-[0.98]"
         >
           <div className="flex items-start justify-between">
