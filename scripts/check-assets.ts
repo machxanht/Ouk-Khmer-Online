@@ -243,25 +243,11 @@ checkFile(
   "Khmer Traditional Audio Track MP3",
 );
 
-// 4. Check Favicon ICO
+// 4. Check current launcher icon copied from the in-app mascot artwork
 checkFile(
-  "public/favicon.ico",
-  (buf) => {
-    if (
-      buf.length < 4 ||
-      buf[0] !== 0x00 ||
-      buf[1] !== 0x00 ||
-      buf[2] !== 0x01 ||
-      buf[3] !== 0x00
-    ) {
-      return {
-        valid: false,
-        reason: `Invalid ICO magic header: ${buf.subarray(0, 4).toString("hex")}`,
-      };
-    }
-    return { valid: true };
-  },
-  "Application Favicon",
+  "public/launcher-icon-20260906.png",
+  withMinimumSize(100_000, pngValidator),
+  "Application Launcher PNG",
 );
 
 // 5. Check All 42 Ouk Piece SVGs
@@ -290,9 +276,28 @@ for (const style of pieceStyles) {
   }
 }
 
-// 6. Check Legacy files MUST NOT exist
+// 6. Check legacy files MUST NOT exist
 checkMustNotExist("src/assets/khmer-audio.mp3", "Deprecated single audio");
 checkMustNotExist("src/assets/khmer-audio-new-1.mp3", "Accidental duplicate copy");
+
+const legacyWebIconPaths = [
+  "public/favicon.ico",
+  "public/favicon-48-20260906.png",
+  "public/apple-touch-icon.png",
+  "public/apple-touch-icon-20260904.png",
+  "public/icon-192.png",
+  "public/icon-192-20260904.png",
+  "public/icon-192-maskable.png",
+  "public/icon-192-maskable-20260904.png",
+  "public/icon-512.png",
+  "public/icon-512-20260904.png",
+  "public/icon-512-maskable.png",
+  "public/icon-512-maskable-20260904.png",
+] as const;
+
+for (const filePath of legacyWebIconPaths) {
+  checkMustNotExist(filePath, "Legacy web/PWA launcher artwork");
+}
 
 // 7. Optional strict production-build verification. CI invokes this after `npm run build`.
 if (requireBuild) {
