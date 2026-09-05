@@ -5,7 +5,7 @@
   "redirects": [
     {
       "source": "/favicon.ico",
-      "destination": "/favicon-48-20260906.png",
+      "destination": "/launcher-icon-20260906.png",
       "permanent": false
     }
   ],
